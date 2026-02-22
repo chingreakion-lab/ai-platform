@@ -199,8 +199,8 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      <ScrollArea className="flex-1 p-4">
+    <div className="flex flex-col h-full bg-white overflow-hidden">
+      <ScrollArea className="flex-1 min-h-0 p-4">
         <div className="space-y-4 max-w-3xl mx-auto">
           {messages.length === 0 && (
             <div className="text-center text-gray-400 py-16 text-sm">

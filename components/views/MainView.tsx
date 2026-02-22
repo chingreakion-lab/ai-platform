@@ -38,48 +38,113 @@ export function MainView() {
     setSelectedMembers([])
   }
 
-  // Extract first runnable code block from AI response
-  const extractCodeBlock = (text: string): { language: string; code: string } | null => {
-    const RUNNABLE = ['python', 'python3', 'javascript', 'js', 'typescript', 'ts', 'bash', 'sh', 'shell', 'ruby', 'go']
-    const match = text.match(/```(\w+)\n([\s\S]*?)```/)
-    if (!match) return null
-    const lang = match[1].toLowerCase()
-    if (!RUNNABLE.includes(lang)) return null
-    return { language: lang, code: match[2].trim() }
-  }
+  // Run a single member as a ReAct agent via SSE stream
+  const runAgentMember = async (
+    member: AIFriend,
+    groupId: string,
+    task: string,
+    history: Array<{ role: string; content: string }>
+  ) => {
+    const taskId = addTask({ title: `${member.name} 🤖 Agent 运行中`, description: task.slice(0, 40), status: 'running' })
 
-  // Auto-execute code block and post result back to group chat
-  const autoExecuteAndFeedback = async (groupId: string, memberName: string, response: string, history: Array<{ role: string; content: string }>) => {
-    const block = extractCodeBlock(response)
-    if (!block) return
-
-    addLog({ level: 'info', message: `🔧 自动执行 ${memberName} 写的 ${block.language} 代码...` })
-    const execTaskId = addTask({ title: `执行 ${memberName} 的代码`, description: `${block.language} 沙盒`, status: 'running' })
+    const systemBase = selectedGroup?.announcement
+      ? `你是 ${member.name}，${member.description}。\n\n群组工作目标：${selectedGroup.announcement}\n\n你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
+      : `你是 ${member.name}，${member.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
 
     try {
-      const res = await fetch('/api/execute', {
+      const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: block.code, language: block.language }),
+        body: JSON.stringify({
+          provider: member.provider, model: member.model, apiKey: member.apiKey,
+          agentName: member.name, task, history, systemBase, groupId,
+        })
       })
-      const result = await res.json()
 
-      const success = result.exitCode === 0
-      const resultText = success
-        ? `✅ 代码执行成功（${block.language}）：\n\`\`\`\n${result.output || '(无输出)'}\n\`\`\``
-        : `❌ 代码执行失败（退出码 ${result.exitCode}）：\n\`\`\`\n${result.error || result.output || '未知错误'}\n\`\`\``
+      if (!res.body) throw new Error('No stream body')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
 
-      addMessage(groupId, {
-        role: 'assistant', content: resultText,
-        senderId: 'system', senderName: '🖥️ 沙盒'
-      })
-      history.push({ role: 'assistant', content: resultText })
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
 
-      updateTask(execTaskId, { status: 'done', result: success ? '执行成功' : '执行失败' })
-      addLog({ level: success ? 'success' : 'error', message: `代码执行${success ? '成功' : '失败'}` })
+        // Parse SSE events from buffer
+        const lines = buf.split('\n')
+        buf = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            handleAgentEvent(event, groupId, member, history)
+          } catch {}
+        }
+      }
+
+      updateTask(taskId, { status: 'done', result: 'Agent 完成' })
+      addLog({ level: 'success', message: `${member.name} Agent 任务完成` })
     } catch (e) {
-      updateTask(execTaskId, { status: 'failed', result: String(e) })
-      addLog({ level: 'error', message: `代码执行异常: ${String(e)}` })
+      updateTask(taskId, { status: 'failed', result: String(e) })
+      addLog({ level: 'error', message: `${member.name} Agent 异常: ${String(e)}` })
+    }
+  }
+
+  // Handle individual SSE events from agent stream
+  const handleAgentEvent = (
+    event: Record<string, unknown>,
+    groupId: string,
+    member: AIFriend,
+    history: Array<{ role: string; content: string }>
+  ) => {
+    const { type } = event
+
+    if (type === 'message') {
+      // AI said something (strip XML tags for display)
+      const display = (event.display as string) || (event.content as string) || ''
+      if (display.trim()) {
+        addMessage(groupId, {
+          role: 'assistant', content: display,
+          senderId: member.id, senderName: member.name
+        })
+        history.push({ role: 'assistant', content: display })
+        addLog({ level: 'info', message: `${member.name}: ${display.slice(0, 60)}...` })
+      }
+    } else if (type === 'tool_call') {
+      const tool = event.tool as string
+      const args = event.args as Record<string, string>
+      let label = `🔧 调用工具: ${tool}`
+      if (tool === 'execute_code') label = `⚙️ 执行 ${args.language} 代码`
+      else if (tool === 'write_file') label = `📝 写入文件: ${args.path}`
+      else if (tool === 'read_file') label = `📖 读取文件: ${args.path}`
+      else if (tool === 'shell') label = `💻 Shell: ${args.cmd?.slice(0, 50)}`
+      addLog({ level: 'info', message: `${member.name} → ${label}` })
+    } else if (type === 'tool_result') {
+      const tool = event.tool as string
+      const result = (event.result as string) || ''
+      // Post tool results as sandbox messages so other AIs can see
+      const content = `\`\`\`\n${result.slice(0, 2000)}${result.length > 2000 ? '\n...(已截断)' : ''}\n\`\`\``
+      addMessage(groupId, {
+        role: 'assistant', content,
+        senderId: 'system', senderName: `🖥️ ${tool}`
+      })
+      history.push({ role: 'assistant', content: result })
+      addLog({ level: result.startsWith('❌') ? 'error' : 'success', message: `工具结果: ${result.slice(0, 80)}` })
+    } else if (type === 'done') {
+      const summary = event.summary as string
+      if (summary && summary.trim()) {
+        addMessage(groupId, {
+          role: 'assistant', content: `✅ **任务完成**\n\n${summary}`,
+          senderId: member.id, senderName: member.name
+        })
+        history.push({ role: 'assistant', content: summary })
+      }
+    } else if (type === 'error') {
+      addLog({ level: 'error', message: `${member.name} 错误: ${event.message}` })
+    } else if (type === 'thinking') {
+      addLog({ level: 'info', message: `${member.name} 思考中 (第 ${event.iteration} 轮)...` })
     }
   }
 
@@ -110,48 +175,17 @@ export function MainView() {
       role: 'user', content, senderId: 'user', senderName: '我',
       attachments: attachments.length > 0 ? attachments : undefined
     })
-    addLog({ level: 'info', message: `用户在群组 "${selectedGroup.name}" 发送消息` })
+    addLog({ level: 'info', message: `用户任务: ${content.slice(0, 60)}` })
 
-    // Each member responds
+    // Build shared conversation history
     const history = selectedGroup.messages.map(m => ({ role: m.role as 'user'|'assistant', content: m.content }))
     history.push({ role: 'user', content })
 
+    // Run each member as an autonomous agent (sequentially so they can see each other's output)
     for (const member of groupMembers) {
-      const taskId = addTask({ title: `${member.name} 正在回复`, description: selectedGroup.name, status: 'running' })
-      try {
-        const systemPrompt = selectedGroup.announcement
-          ? `你是 ${member.name}，${member.description}。\n\n群组工作目标：${selectedGroup.announcement}\n\n请根据工作目标积极参与协作，简洁专业地回复。如果需要写代码，请直接写出完整可运行的代码，代码会被自动执行并将结果反馈到群里。`
-          : `你是 ${member.name}，${member.description}。请简洁专业地参与群组协作。如果需要写代码，请直接写出完整可运行的代码，代码会被自动执行并将结果反馈到群里。`
-
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            provider: member.provider, model: member.model, apiKey: member.apiKey,
-            messages: history, systemPrompt
-          })
-        })
-        const data = await res.json()
-        if (data.response) {
-          addMessage(selectedGroup.id, {
-            role: 'assistant', content: data.response,
-            senderId: member.id, senderName: member.name
-          })
-          history.push({ role: 'assistant', content: data.response })
-          updateTask(taskId, { status: 'done', result: '回复成功' })
-          addLog({ level: 'success', message: `${member.name} 在群组 "${selectedGroup.name}" 回复完成` })
-
-          // Auto-execute any code blocks in the response
-          await autoExecuteAndFeedback(selectedGroup.id, member.name, data.response, history)
-        } else {
-          updateTask(taskId, { status: 'failed', result: data.error || '未知错误' })
-          addLog({ level: 'error', message: `${member.name} 回复失败: ${data.error}` })
-        }
-      } catch (e) {
-        updateTask(taskId, { status: 'failed', result: String(e) })
-        addLog({ level: 'error', message: `${member.name} 回复异常: ${String(e)}` })
-      }
+      await runAgentMember(member, selectedGroup.id, content, history)
     }
+
     setIsLoading(false)
   }
 
