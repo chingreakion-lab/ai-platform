@@ -210,7 +210,27 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
           )}
           {messages.map((msg) => {
             const isUser = msg.role === 'user'
+            const isSandbox = msg.senderId === 'system'
             const member = members?.find(m => m.id === msg.senderId)
+
+            // Sandbox execution result: center-aligned system message
+            if (isSandbox) {
+              return (
+                <div key={msg.id} className="flex justify-center">
+                  <div className="max-w-[85%] rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-600 overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
+                      <Terminal className="h-3 w-3 text-gray-500" />
+                      <span className="font-medium text-gray-500">{msg.senderName}</span>
+                      <span className="text-gray-400">{format(msg.timestamp, 'HH:mm')}</span>
+                    </div>
+                    <div className="px-3 py-2">
+                      <MessageContent content={msg.content} />
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
             return (
               <div key={msg.id} className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
                 <Avatar className="h-8 w-8 shrink-0 mt-1">

@@ -38,6 +38,51 @@ export function MainView() {
     setSelectedMembers([])
   }
 
+  // Extract first runnable code block from AI response
+  const extractCodeBlock = (text: string): { language: string; code: string } | null => {
+    const RUNNABLE = ['python', 'python3', 'javascript', 'js', 'typescript', 'ts', 'bash', 'sh', 'shell', 'ruby', 'go']
+    const match = text.match(/```(\w+)\n([\s\S]*?)```/)
+    if (!match) return null
+    const lang = match[1].toLowerCase()
+    if (!RUNNABLE.includes(lang)) return null
+    return { language: lang, code: match[2].trim() }
+  }
+
+  // Auto-execute code block and post result back to group chat
+  const autoExecuteAndFeedback = async (groupId: string, memberName: string, response: string, history: Array<{ role: string; content: string }>) => {
+    const block = extractCodeBlock(response)
+    if (!block) return
+
+    addLog({ level: 'info', message: `🔧 自动执行 ${memberName} 写的 ${block.language} 代码...` })
+    const execTaskId = addTask({ title: `执行 ${memberName} 的代码`, description: `${block.language} 沙盒`, status: 'running' })
+
+    try {
+      const res = await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: block.code, language: block.language }),
+      })
+      const result = await res.json()
+
+      const success = result.exitCode === 0
+      const resultText = success
+        ? `✅ 代码执行成功（${block.language}）：\n\`\`\`\n${result.output || '(无输出)'}\n\`\`\``
+        : `❌ 代码执行失败（退出码 ${result.exitCode}）：\n\`\`\`\n${result.error || result.output || '未知错误'}\n\`\`\``
+
+      addMessage(groupId, {
+        role: 'assistant', content: resultText,
+        senderId: 'system', senderName: '🖥️ 沙盒'
+      })
+      history.push({ role: 'assistant', content: resultText })
+
+      updateTask(execTaskId, { status: 'done', result: success ? '执行成功' : '执行失败' })
+      addLog({ level: success ? 'success' : 'error', message: `代码执行${success ? '成功' : '失败'}` })
+    } catch (e) {
+      updateTask(execTaskId, { status: 'failed', result: String(e) })
+      addLog({ level: 'error', message: `代码执行异常: ${String(e)}` })
+    }
+  }
+
   const handleSendMessage = async (content: string, files?: File[]) => {
     if (!selectedGroup) return
     setIsLoading(true)
@@ -75,8 +120,8 @@ export function MainView() {
       const taskId = addTask({ title: `${member.name} 正在回复`, description: selectedGroup.name, status: 'running' })
       try {
         const systemPrompt = selectedGroup.announcement
-          ? `你是 ${member.name}，${member.description}。\n\n群组工作目标：${selectedGroup.announcement}\n\n请根据工作目标积极参与协作，简洁专业地回复。`
-          : `你是 ${member.name}，${member.description}。请简洁专业地参与群组协作。`
+          ? `你是 ${member.name}，${member.description}。\n\n群组工作目标：${selectedGroup.announcement}\n\n请根据工作目标积极参与协作，简洁专业地回复。如果需要写代码，请直接写出完整可运行的代码，代码会被自动执行并将结果反馈到群里。`
+          : `你是 ${member.name}，${member.description}。请简洁专业地参与群组协作。如果需要写代码，请直接写出完整可运行的代码，代码会被自动执行并将结果反馈到群里。`
 
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -95,6 +140,9 @@ export function MainView() {
           history.push({ role: 'assistant', content: data.response })
           updateTask(taskId, { status: 'done', result: '回复成功' })
           addLog({ level: 'success', message: `${member.name} 在群组 "${selectedGroup.name}" 回复完成` })
+
+          // Auto-execute any code blocks in the response
+          await autoExecuteAndFeedback(selectedGroup.id, member.name, data.response, history)
         } else {
           updateTask(taskId, { status: 'failed', result: data.error || '未知错误' })
           addLog({ level: 'error', message: `${member.name} 回复失败: ${data.error}` })
