@@ -24,6 +24,7 @@ const shouldRecall = (text: string) => RECALL_TRIGGERS.some(t => text.includes(t
 export function FriendChatView({ conversation, friend, onBack }: FriendChatViewProps) {
   const {
     addConversationMessage,
+    updateConversationMessage,
     renameConversation,
     addLog,
     addTask,
@@ -35,16 +36,28 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(conversation.name)
   const [isLoading, setIsLoading] = useState(false)
+  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
 
-  // BUG-2 fix: standard SSE parsing with \n\n event boundary
+  // Agent 流式运行：所有 message 事件累积到同一个气泡，thinking 事件不插消息
   const runAgent = async (task: string) => {
-    addTask({
+    const taskId = addTask({
       title: `${friend.name} 🤖 Agent`,
       description: task.slice(0, 40),
       status: 'running',
     })
 
     const systemBase = `你是 ${friend.name}，${friend.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
+
+    // 创建流式占位消息
+    const placeholderId = addConversationMessage(conversation.id, {
+      role: 'assistant',
+      content: '',
+      senderId: friend.id,
+      senderName: friend.name,
+      attachments: [],
+    })
+    setStreamingMsgId(placeholderId)
+    let accContent = ''
 
     try {
       setIsLoading(true)
@@ -63,6 +76,8 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
       })
 
       if (!res.ok) {
+        const errText = `❌ Agent 请求失败：${res.statusText}`
+        updateConversationMessage(conversation.id, placeholderId, errText)
         addLog({ level: 'error', message: `${friend.name} Agent 失败：${res.statusText}` })
         return
       }
@@ -76,10 +91,9 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-
         buffer += decoder.decode(value, { stream: true })
 
-        // SSE events are separated by \n\n
+        // SSE 事件以 \n\n 分隔
         const events = buffer.split('\n\n')
         buffer = events.pop() ?? ''
 
@@ -89,28 +103,70 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
           try {
             const data = JSON.parse(dataLine.slice(5).trim())
 
-            if (data.type === 'thinking' || data.type === 'message') {
+            if (data.type === 'message' && data.content?.trim()) {
+              // 累积到同一气泡，段落间加空行
+              accContent = accContent
+                ? accContent + '\n\n' + data.content
+                : data.content
+              updateConversationMessage(conversation.id, placeholderId, accContent)
+            } else if (data.type === 'thinking') {
+              // thinking 只写日志，不插消息
+              addLog({ level: 'info', message: `${friend.name} 思考中 (第 ${data.iteration ?? '?'} 轮)...` })
+            } else if (data.type === 'tool_call') {
+              const tool = data.tool as string
+              const args = (data.args as Record<string, string>) || {}
+              const label =
+                tool === 'execute_code' ? `⚙️ 执行 ${args.language || ''} 代码` :
+                tool === 'write_file'   ? `📝 写入 \`${args.path}\`` :
+                tool === 'read_file'    ? `📖 读取 \`${args.path}\`` :
+                tool === 'shell'        ? `💻 \`${(args.command || args.cmd || '').slice(0, 60)}\`` :
+                `🔧 ${tool}`
               addConversationMessage(conversation.id, {
-                role: 'assistant',
-                content: data.content,
-                senderId: friend.id,
-                senderName: friend.name,
-                attachments: [],
+                role: 'assistant', content: label,
+                senderId: 'system', senderName: friend.name, attachments: [],
               })
-            }
-            if (data.type === 'done' || data.type === 'completed') {
+              addLog({ level: 'info', message: `${friend.name} → ${label}` })
+            } else if (data.type === 'tool_result') {
+              const result = (data.result as string) || ''
+              addLog({
+                level: result.startsWith('❌') ? 'error' : 'success',
+                message: `[${data.tool}] ${result.slice(0, 120)}${result.length > 120 ? '...' : ''}`
+              })
+            } else if (data.type === 'done') {
+              const summary = (data.summary as string) || ''
+              if (summary.trim() && summary !== accContent) {
+                // 任务完成摘要与流式内容不同时才追加
+                const finalContent = accContent
+                  ? accContent + '\n\n✅ **任务完成**\n' + summary
+                  : '✅ **任务完成**\n' + summary
+                updateConversationMessage(conversation.id, placeholderId, finalContent)
+              }
+              updateTask(taskId, { status: 'done', result: '完成' })
               addLog({ level: 'success', message: `${friend.name} Agent 任务完成` })
-            }
-            if (data.type === 'error') {
-              addLog({ level: 'error', message: `${friend.name} Agent 错误：${data.error}` })
+            } else if (data.type === 'error') {
+              const errMsg = (data.message || data.error || '未知错误') as string
+              const errContent = (accContent ? accContent + '\n\n' : '') + `❌ ${errMsg}`
+              updateConversationMessage(conversation.id, placeholderId, errContent)
+              updateTask(taskId, { status: 'failed', result: errMsg })
+              addLog({ level: 'error', message: `${friend.name} Agent 错误：${errMsg}` })
             }
           } catch { /* skip malformed lines */ }
         }
       }
+
+      // 如果全程没有任何内容，填一个提示
+      if (!accContent) {
+        updateConversationMessage(conversation.id, placeholderId, '（Agent 执行完毕，无文字输出）')
+      }
     } catch (err) {
-      addLog({ level: 'error', message: `${friend.name} Agent 异常：${err instanceof Error ? err.message : '未知错误'}` })
+      const msg = err instanceof Error ? err.message : '未知错误'
+      const errContent = (accContent ? accContent + '\n\n' : '') + `❌ 执行异常：${msg}`
+      updateConversationMessage(conversation.id, placeholderId, errContent)
+      updateTask(taskId, { status: 'failed', result: msg })
+      addLog({ level: 'error', message: `${friend.name} Agent 异常：${msg}` })
     } finally {
       setIsLoading(false)
+      setStreamingMsgId(null)
     }
   }
 
@@ -286,6 +342,7 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
           members={[friend]}
           placeholder="输入消息，或以 /agent 开头触发 Agent 模式..."
           isLoading={isLoading}
+          streamingMessageId={streamingMsgId}
           onSendMessage={handleSendMessage}
         />
       </div>

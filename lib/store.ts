@@ -94,7 +94,8 @@ interface AppState {
   addConversation: (friendId: string, name: string) => string
   deleteConversation: (id: string) => void
   renameConversation: (id: string, name: string) => void
-  addConversationMessage: (conversationId: string, message: Omit<Message, 'id' | 'timestamp'>) => void
+  addConversationMessage: (conversationId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
+  updateConversationMessage: (conversationId: string, messageId: string, content: string) => void
   setActiveConversation: (id: string | null) => void
   getConversationsByFriend: (friendId: string) => Conversation[]
   
@@ -114,7 +115,8 @@ interface AppState {
   createGroup: (name: string, memberIds: string[]) => string
   updateGroup: (id: string, updates: Partial<Group>) => void
   deleteGroup: (id: string) => void
-  addMessage: (groupId: string, message: Omit<Message, 'id' | 'timestamp'>) => void
+  addMessage: (groupId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
+  updateGroupMessage: (groupId: string, messageId: string, content: string) => void
   createBoard: (name: string, description: string, ownerId: string) => string
   updateBoard: (id: string, updates: Partial<FeatureBoard>) => void
   deleteBoard: (id: string) => void
@@ -224,13 +226,29 @@ export const useAppStore = create<AppState>()((set, get) => ({
     return next
   }),
 
-  addConversationMessage: (conversationId, message) => set((state) => {
+  addConversationMessage: (conversationId, message) => {
+    const id = uuidv4()
+    set((state) => {
+      const next = {
+        ...state,
+        conversations: state.conversations.map(c => c.id === conversationId ? {
+          ...c,
+          messages: [...c.messages, { ...message, id, timestamp: Date.now() }],
+          lastActiveAt: Date.now()
+        } : c)
+      }
+      saveToStorage(next)
+      return next
+    })
+    return id
+  },
+
+  updateConversationMessage: (conversationId, messageId, content) => set((state) => {
     const next = {
       ...state,
       conversations: state.conversations.map(c => c.id === conversationId ? {
         ...c,
-        messages: [...c.messages, { ...message, id: uuidv4(), timestamp: Date.now() }],
-        lastActiveAt: Date.now()
+        messages: c.messages.map(m => m.id === messageId ? { ...m, content } : m)
       } : c)
     }
     saveToStorage(next)
@@ -271,11 +289,27 @@ export const useAppStore = create<AppState>()((set, get) => ({
     saveToStorage(next)
     return next
   }),
-  addMessage: (groupId, message) => set((state) => {
+  addMessage: (groupId, message) => {
+    const id = uuidv4()
+    set((state) => {
+      const next = {
+        ...state,
+        groups: state.groups.map(g => g.id === groupId ? {
+          ...g, messages: [...g.messages, { ...message, id, timestamp: Date.now() }]
+        } : g)
+      }
+      saveToStorage(next)
+      return next
+    })
+    return id
+  },
+
+  updateGroupMessage: (groupId, messageId, content) => set((state) => {
     const next = {
       ...state,
       groups: state.groups.map(g => g.id === groupId ? {
-        ...g, messages: [...g.messages, { ...message, id: uuidv4(), timestamp: Date.now() }]
+        ...g,
+        messages: g.messages.map(m => m.id === messageId ? { ...m, content } : m)
       } : g)
     }
     saveToStorage(next)

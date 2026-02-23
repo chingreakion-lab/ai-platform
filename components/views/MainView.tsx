@@ -15,7 +15,7 @@ import { Group, Message, AIFriend, Attachment } from '@/lib/types'
 import { v4 as uuidv4 } from 'uuid'
 
 export function MainView() {
-  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView, roleCards, updateGroupMemberRole } = useAppStore()
+  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, updateGroupMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView, roleCards, updateGroupMemberRole } = useAppStore()
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -24,6 +24,7 @@ export function MainView() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
   const [announcementText, setAnnouncementText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
   const [memberRoles, setMemberRoles] = useState<Record<string, string>>({}) // friendId -> roleCardId
   const [roleDialogOpen, setRoleDialogOpen] = useState(false)
   const [roleDialogFriendId, setRoleDialogFriendId] = useState<string | null>(null)
@@ -42,7 +43,6 @@ export function MainView() {
     setSelectedMembers([])
   }
 
-  // Run a single member as a ReAct agent via SSE stream
   const runAgentMember = async (
     member: AIFriend,
     groupId: string,
@@ -51,24 +51,18 @@ export function MainView() {
   ) => {
     const taskId = addTask({ title: `${member.name} 🤖 Agent 运行中`, description: task.slice(0, 40), status: 'running' })
 
-    // 在聊天里告诉用户这个 Agent 开始工作了
-    addMessage(groupId, {
-      role: 'assistant',
-      content: `🤖 正在执行任务，请稍候...`,
-      senderId: member.id, senderName: member.name
-    })
-
-    // Get the member's role card in this group (if assigned)
     const memberInGroup = selectedGroup?.members.find(m => m.friendId === member.id)
     const roleCard = memberInGroup?.roleCardId ? roleCards.find(c => c.id === memberInGroup.roleCardId) : null
+    let systemBase = roleCard?.systemPrompt || `你是 ${member.name}，${member.description}。你是一个能自主完成任务的AI工程师。`
+    if (selectedGroup?.announcement) systemBase += `\n\n群组工作目标：${selectedGroup.announcement}`
 
-    // Build system prompt: use role card if assigned, otherwise use default
-    let systemBase = roleCard?.systemPrompt || `你是 ${member.name}，${member.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
-
-    // Add group announcement if present
-    if (selectedGroup?.announcement) {
-      systemBase += `\n\n群组工作目标：${selectedGroup.announcement}`
-    }
+    // 创建流式占位消息
+    const placeholderId = addMessage(groupId, {
+      role: 'assistant', content: '',
+      senderId: member.id, senderName: member.name
+    })
+    setStreamingMsgId(placeholderId)
+    let accContent = ''
 
     try {
       const res = await fetch('/api/agent', {
@@ -89,8 +83,6 @@ export function MainView() {
         const { done, value } = await reader.read()
         if (done) break
         buf += decoder.decode(value, { stream: true })
-
-        // Parse SSE events from buffer
         const lines = buf.split('\n')
         buf = lines.pop() || ''
 
@@ -98,83 +90,65 @@ export function MainView() {
           if (!line.startsWith('data: ')) continue
           try {
             const event = JSON.parse(line.slice(6))
-            handleAgentEvent(event, groupId, member, history)
+            const { type } = event
+
+            if (type === 'message') {
+              const display = (event.display as string) || (event.content as string) || ''
+              if (display.trim()) {
+                accContent = accContent ? accContent + '\n\n' + display : display
+                updateGroupMessage(groupId, placeholderId, accContent)
+                history.push({ role: 'assistant', content: display })
+              }
+            } else if (type === 'thinking') {
+              addLog({ level: 'info', message: `${member.name} 思考中 (第 ${event.iteration} 轮)...` })
+            } else if (type === 'tool_call') {
+              const tool = event.tool as string
+              const args = (event.args as Record<string, string>) || {}
+              const label =
+                tool === 'execute_code' ? `⚙️ 执行 ${args.language || ''} 代码` :
+                tool === 'write_file'   ? `📝 写入 \`${args.path}\`` :
+                tool === 'read_file'    ? `📖 读取 \`${args.path}\`` :
+                tool === 'shell'        ? `💻 \`${(args.command || args.cmd || '').slice(0, 60)}\`` :
+                `🔧 ${tool}`
+              addMessage(groupId, { role: 'assistant', content: label, senderId: 'system', senderName: member.name })
+              addLog({ level: 'info', message: `${member.name} → ${label}` })
+            } else if (type === 'tool_result') {
+              const result = (event.result as string) || ''
+              history.push({ role: 'assistant', content: result })
+              addLog({
+                level: result.startsWith('❌') ? 'error' : 'success',
+                message: `[${event.tool}] ${result.slice(0, 120)}${result.length > 120 ? '...' : ''}`
+              })
+            } else if (type === 'done') {
+              const summary = (event.summary as string) || ''
+              if (summary.trim() && summary !== accContent) {
+                const finalContent = accContent
+                  ? accContent + '\n\n✅ **任务完成**\n' + summary
+                  : '✅ **任务完成**\n' + summary
+                updateGroupMessage(groupId, placeholderId, finalContent)
+                history.push({ role: 'assistant', content: summary })
+              }
+            } else if (type === 'error') {
+              const errMsg = (event.message || event.error || '未知错误') as string
+              const errContent = (accContent ? accContent + '\n\n' : '') + `❌ ${errMsg}`
+              updateGroupMessage(groupId, placeholderId, errContent)
+              addLog({ level: 'error', message: `${member.name} 错误: ${errMsg}` })
+            }
           } catch {}
         }
       }
 
+      if (!accContent) updateGroupMessage(groupId, placeholderId, '（无文字输出）')
       updateTask(taskId, { status: 'done', result: 'Agent 完成' })
       addLog({ level: 'success', message: `${member.name} Agent 任务完成` })
     } catch (e) {
       const msg = String(e)
-      addMessage(groupId, {
-        role: 'assistant', content: `❌ 执行异常：${msg}`,
-        senderId: member.id, senderName: member.name
-      })
+      const errContent = (accContent ? accContent + '\n\n' : '') + `❌ 执行异常：${msg}`
+      updateGroupMessage(groupId, placeholderId, errContent)
       updateTask(taskId, { status: 'failed', result: msg })
       addLog({ level: 'error', message: `${member.name} Agent 异常: ${msg}` })
-    }
-  }
-
-  // Handle individual SSE events from agent stream
-  const handleAgentEvent = (
-    event: Record<string, unknown>,
-    groupId: string,
-    member: AIFriend,
-    history: Array<{ role: string; content: string }>
-  ) => {
-    const { type } = event
-
-    if (type === 'message') {
-      const display = (event.display as string) || (event.content as string) || ''
-      if (display.trim()) {
-        addMessage(groupId, {
-          role: 'assistant', content: display,
-          senderId: member.id, senderName: member.name
-        })
-        history.push({ role: 'assistant', content: display })
-      }
-    } else if (type === 'tool_call') {
-      // 在聊天里显示轻量操作标签，让用户看到进度
-      const tool = event.tool as string
-      const args = (event.args as Record<string, string>) || {}
-      let label =
-        tool === 'execute_code' ? `⚙️ 执行 ${args.language || ''} 代码` :
-        tool === 'write_file'   ? `📝 写入文件 \`${args.path}\`` :
-        tool === 'read_file'    ? `📖 读取文件 \`${args.path}\`` :
-        tool === 'shell'        ? `💻 \`${(args.command || args.cmd || '').slice(0, 60)}\`` :
-        `🔧 ${tool}`
-      addMessage(groupId, {
-        role: 'assistant', content: label,
-        senderId: 'system', senderName: member.name
-      })
-      addLog({ level: 'info', message: `${member.name} → ${label}` })
-    } else if (type === 'tool_result') {
-      // 工具结果只写日志和 history，不刷屏聊天
-      const result = (event.result as string) || ''
-      history.push({ role: 'assistant', content: result })
-      addLog({
-        level: result.startsWith('❌') ? 'error' : 'success',
-        message: `[${event.tool}] ${result.slice(0, 120)}${result.length > 120 ? '...' : ''}`
-      })
-    } else if (type === 'done') {
-      const summary = (event.summary as string) || ''
-      if (summary.trim()) {
-        addMessage(groupId, {
-          role: 'assistant', content: `✅ **任务完成**\n\n${summary}`,
-          senderId: member.id, senderName: member.name
-        })
-        history.push({ role: 'assistant', content: summary })
-      }
-    } else if (type === 'error') {
-      const errMsg = (event.message || event.error || '未知错误') as string
-      addMessage(groupId, {
-        role: 'assistant', content: `❌ ${errMsg}`,
-        senderId: member.id, senderName: member.name
-      })
-      addLog({ level: 'error', message: `${member.name} 错误: ${errMsg}` })
-    } else if (type === 'thinking') {
-      addLog({ level: 'info', message: `${member.name} 思考中 (第 ${event.iteration} 轮)...` })
+    } finally {
+      setStreamingMsgId(null)
     }
   }
 
@@ -366,18 +340,65 @@ export function MainView() {
               onSendMessage={handleSendMessage}
               members={groupMembers}
               isLoading={isLoading}
+              streamingMessageId={streamingMsgId}
               placeholder={`在 ${selectedGroup.name} 中发送消息...`}
             />
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
-          <div className="text-center text-gray-400">
-            <Users className="h-16 w-16 mx-auto mb-3 text-gray-200" />
-            <p className="text-sm">选择一个群组开始协作</p>
-            <Button className="mt-4" size="sm" onClick={() => setShowCreateGroup(true)}>
-              <Plus className="h-4 w-4 mr-1" /> 创建群组
-            </Button>
+        <div className="flex-1 flex items-center justify-center bg-gray-50/50">
+          <div className="max-w-lg w-full mx-auto px-6 py-8 text-center">
+            {groups.length === 0 ? (
+              <>
+                {/* First run: no groups yet */}
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mx-auto mb-5 shadow-lg">
+                  <Users className="h-8 w-8 text-white" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-800 mb-2">欢迎使用 AI 协作平台</h2>
+                <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                  创建一个群组，把你的 AI 好友集合起来，像团队一样协作完成编程任务。
+                </p>
+                <div className="grid grid-cols-3 gap-3 mb-6 text-left">
+                  {[
+                    { icon: '🤖', title: 'Agent 模式', desc: 'AI 自主写代码、执行、迭代' },
+                    { icon: '👥', title: '多 AI 协作', desc: '多个 AI 依次完成不同分工' },
+                    { icon: '📦', title: '代码沙盒', desc: '在 Docker 容器里安全运行代码' },
+                  ].map(item => (
+                    <div key={item.title} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                      <div className="text-2xl mb-1.5">{item.icon}</div>
+                      <p className="text-xs font-semibold text-gray-700">{item.title}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                {friends.length > 0 ? (
+                  <Button className="gap-2 h-9 px-5 text-sm" onClick={() => setShowCreateGroup(true)}>
+                    <Plus className="h-4 w-4" /> 创建第一个群组
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                      💡 先去「设置」页添加 AI 好友（配置 API Key），再回来创建群组
+                    </p>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setActiveView('settings')}>
+                      <Plus className="h-3.5 w-3.5" /> 前往设置添加 AI 好友
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Has groups but none selected */}
+                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <Users className="h-6 w-6 text-gray-400" />
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">选择左侧群组开始协作</p>
+                <p className="text-xs text-gray-400 mb-4">或者创建一个新群组</p>
+                <Button size="sm" className="gap-1.5 h-8 px-4 text-xs" onClick={() => setShowCreateGroup(true)}>
+                  <Plus className="h-3.5 w-3.5" /> 新建群组
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

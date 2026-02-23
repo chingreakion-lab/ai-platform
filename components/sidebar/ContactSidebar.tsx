@@ -58,6 +58,21 @@ export function ContactSidebar({ activeConversationId, onSelectConversation, onS
     onSelectGroup?.(groupId)
   }
 
+  // One-click chat: if friend has no conversations auto-create one
+  const handleFriendClick = (friend: AIFriend) => {
+    const friendConversations = getConversationsByFriend(friend.id)
+    if (friendConversations.length === 0) {
+      const newId = addConversation(friend.id, '默认对话')
+      setActiveView('main')
+      onSelectConversation?.(newId)
+    } else if (friendConversations.length === 1) {
+      // Only one conv, open it directly
+      handleSelectConversation(friendConversations[0].id)
+    } else {
+      toggleFriendExpanded(friend.id)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-50 border-r border-gray-200 w-64">
       {/* Header */}
@@ -79,16 +94,16 @@ export function ContactSidebar({ activeConversationId, onSelectConversation, onS
                   <div key={friend.id}>
                     {/* Friend Item */}
                     <button
-                      onClick={() => toggleFriendExpanded(friend.id)}
+                      onClick={() => handleFriendClick(friend)}
                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-200 transition-colors text-left group"
                     >
                       <div className="flex items-center gap-2 flex-1">
-                        {friendConversations.length > 0 && (
+                        {friendConversations.length > 1 && (
                           <span className="w-4 h-4 flex items-center justify-center text-gray-600">
                             {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                           </span>
                         )}
-                        {friendConversations.length === 0 && <div className="w-4" />}
+                        {friendConversations.length <= 1 && <div className="w-4" />}
                         <Avatar className="h-6 w-6">
                           <AvatarFallback style={{ backgroundColor: friend.avatar }} className="text-white text-xs font-bold">
                             {friend.name.charAt(0)}
@@ -96,7 +111,9 @@ export function ContactSidebar({ activeConversationId, onSelectConversation, onS
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-700 truncate">{friend.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{friend.role === 'chief' ? '主工程师' : '功能工程师'}</p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {friendConversations.length === 0 ? <span className="text-blue-400">点击开始对话</span> : friend.role === 'chief' ? '主工程师' : '功能工程师'}
+                          </p>
                         </div>
                       </div>
                       {isExpanded && (
