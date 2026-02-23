@@ -140,23 +140,49 @@ Grok 写的文件 Gemini 能直接读到，装过的包不用重装。
 
 ---
 
-### [~] TASK-2 UI 重构：好友 + 群组系统
+### [x] TASK-2 UI 重构：好友 + 群组系统
 优先级：P0
-预计工作量：6-8小时
+完成时间：2026-02-23
+Commit：8593652
 
-进度：2-B 编译修复完成，正进行 2-C
-- TASK-2-A ✅ 完成：修改 /lib/types.ts - 添加 Conversation 和 GroupMember 接口
-- TASK-2-B ✅ 完成：编辑 /lib/store.ts - 添加对话框管理方法，修复 Group.members 类型变更
-  - 添加 Conversation 接口支持 1:1 好友对话
-  - 添加 6 个对话管理方法：addConversation, deleteConversation, renameConversation, addConversationMessage, setActiveConversation, getConversationsByFriend
-  - 修改 Group 结构：members 从 string[] 改为 GroupMember[]（包含 friendId + roleCardId）
-  - 修复编译错误：更新 MainView.tsx 和 FeatureView.tsx 中的 members 访问模式
-  - createGroup 签名改为接受 string[] 并在 store 内部转换为 GroupMember[]
-- TASK-2-C ⏳ 进行中：创建 ContactSidebar.tsx（左侧边栏展示好友和群组）
-- TASK-2-D ⏳ 待开始：创建 FriendChatView.tsx（1:1 对话界面）
-- TASK-2-E ⏳ 待开始：改造 MainLayout.tsx（用侧边栏替代上方标签导航）
+目标：
+重构 UI 从上方标签导航到左侧边栏，支持 1:1 好友对话和群聊。
 
-编译状态：✅ npm run build 成功（Turbopack 编译 1332ms，TypeScript 编译通过）
+完成情况：✅
+
+实现完成：
+1. ✅ TASK-2-A: 修改 /lib/types.ts
+   - 添加 Conversation 接口（支持 1:1 好友对话）
+   - 添加 GroupMember 接口（包含 friendId + roleCardId）
+   - 修改 Group.members 从 string[] 改为 GroupMember[]
+
+2. ✅ TASK-2-B: 编辑 /lib/store.ts
+   - 添加 6 个对话管理方法（addConversation, deleteConversation, renameConversation, addConversationMessage, setActiveConversation, getConversationsByFriend）
+   - 修改 createGroup 签名：接受 string[] memberIds，内部转换为 GroupMember[]
+   - 更新存储机制包含 conversations
+
+3. ✅ TASK-2-C: 创建 /components/sidebar/ContactSidebar.tsx
+   - 左侧边栏展示好友列表（可展开/折叠)
+   - 在好友下显示该好友的所有 1:1 对话
+   - 群组列表独立展示
+   - 支持创建新对话
+   - 点击作用：进入对话或群聊
+
+4. ✅ TASK-2-D: 创建 /components/views/FriendChatView.tsx
+   - 1:1 对话界面，显示对话历史
+   - 支持重命名对话
+   - 集成 ChatArea 组件
+   - 支持 /agent 前缀触发 AI Agent 自动执行
+   - SSE 流式处理 Agent 响应
+
+5. ✅ TASK-2-E: 改造 /components/layout/MainLayout.tsx
+   - 集成 ContactSidebar 左侧边栏
+   - 菜单按钮可折叠/展开边栏
+   - 检测 activeConversationId 当有活跃对话时显示 FriendChatView
+   - 保留原有的标签导航和其他视图（MainView, FeatureView, etc）
+   - 双路由：群聊模式和 1:1 对话模式
+
+编译状态：✅ npm run build 成功（Turbopack 编译 1268ms，TypeScript 编译通过)
 
 目标：
 - 好友列表和群组列表并列（都在左侧边栏）
