@@ -235,25 +235,22 @@ addConversationMessage(convId, message): void
 
 ---
 
-### [ ] TASK-3 角色卡牌系统
-优先级：P1（TASK-2 完成后做）
+### [~] TASK-3 角色卡牌系统
+优先级：P1
 预计工作量：3-4小时
+开始时间：2026-02-23
+
+进度：正在实现 3-A（新增 RoleCard 类型和内置卡牌）
+- TASK-3-A ⏳ 进行中：修改 /lib/types.ts - 添加 RoleCard 接口和内置卡牌库
+- TASK-3-B ⏳ 待开始：编辑 /lib/store.ts - 添加 roleCards CRUD 方法
+- TASK-3-C ⏳ 待开始：改造群组设置 UI - 每个成员可分配角色卡牌
+- TASK-3-D ⏳ 待开始：修改 Agent 调用 - 注入角色卡牌的 system prompt
 
 目标：
-- 平台内置角色卡牌库
-- 用户可自定义卡牌（写 system prompt）
-- 群里：用户把卡牌分配给某个好友
-- 同一个好友在不同群可以是不同角色
-
-内置角色：首席工程师🔧 / 前端工程师🎨 / 后端工程师⚙️ / 测试工程师🧪 / 数据分析师📊 / 代码审查员👁️
-
-详细 system prompt 见旧版 NEXT_TASKS.md（仍在 git 历史里）
-
-需要做：
-1. 新建 `RoleCard` 类型和内置卡牌数据
-2. Store 新增 `roleCards` + CRUD
-3. 群组设置里加角色分配 UI（每个成员旁边的卡牌选择器）
-4. Agent 调用时把角色卡牌的 system prompt 注入
+- 内置角色卡牌库（首席工程师、前端、后端、测试、数据分析、代码审查）
+- 用户可自定义角色卡牌
+- 群里将卡牌分配给成员，支持不同群用不同角色
+- Agent 运行时使用对应角色的 system prompt
 
 ---
 

@@ -1,6 +1,6 @@
 'use client'
 import { create } from 'zustand'
-import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, Attachment, BoardStatus, BoardHistory, Conversation, GroupMember } from './types'
+import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, Attachment, BoardStatus, BoardHistory, Conversation, GroupMember, RoleCard, DEFAULT_ROLE_CARDS } from './types'
 import { v4 as uuidv4 } from 'uuid'
 
 // API keys loaded from .env.local (NEXT_PUBLIC_ prefix for client-side access)
@@ -57,6 +57,7 @@ function saveToStorage(state: Partial<AppState>) {
       friends: state.friends,
       groups: state.groups,
       conversations: state.conversations,
+      roleCards: state.roleCards,
       featureBoards: state.featureBoards,
       tasks: state.tasks,
       logs: state.logs,
@@ -70,6 +71,7 @@ interface AppState {
   friends: AIFriend[]
   groups: Group[]
   conversations: Conversation[] // new: friend conversations
+  roleCards: RoleCard[] // new: custom and built-in role cards
   featureBoards: FeatureBoard[]
   tasks: Task[]
   logs: LogEntry[]
@@ -93,6 +95,12 @@ interface AppState {
   addConversationMessage: (conversationId: string, message: Omit<Message, 'id' | 'timestamp'>) => void
   setActiveConversation: (id: string | null) => void
   getConversationsByFriend: (friendId: string) => Conversation[]
+  
+  // Role card methods (new)
+  addRoleCard: (card: Omit<RoleCard, 'id' | 'createdAt' | 'updatedAt'>) => string
+  updateRoleCard: (id: string, updates: Partial<Omit<RoleCard, 'id' | 'createdAt' | 'updatedAt'>>) => void
+  deleteRoleCard: (id: string) => void
+  getRoleCard: (id: string) => RoleCard | undefined
   
   createGroup: (name: string, memberIds: string[]) => string
   updateGroup: (id: string, updates: Partial<Group>) => void
@@ -120,6 +128,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
   friends: defaultFriends,
   groups: [],
   conversations: [],
+  roleCards: DEFAULT_ROLE_CARDS.map(card => ({
+    ...card,
+    id: uuidv4(),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  })),
   featureBoards: [],
   tasks: [],
   logs: [],
@@ -139,6 +153,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         friends: saved.friends?.length ? saved.friends : defaultFriends,
         groups: saved.groups || [],
         conversations: saved.conversations || [],
+        roleCards: saved.roleCards || get().roleCards, // Use existing built-in cards if not saved
         featureBoards: saved.featureBoards || [],
         tasks: saved.tasks || [],
         logs: saved.logs || [],
@@ -359,4 +374,45 @@ export const useAppStore = create<AppState>()((set, get) => ({
     saveToStorage(next)
     return next
   }),
+
+  // Role card methods
+  addRoleCard: (card) => {
+    const id = uuidv4()
+    set((state) => {
+      const next = {
+        ...state,
+        roleCards: [...state.roleCards, {
+          ...card,
+          id,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }],
+      }
+      saveToStorage(next)
+      return next
+    })
+    return id
+  },
+
+  updateRoleCard: (id, updates) => set((state) => {
+    const next = {
+      ...state,
+      roleCards: state.roleCards.map(c => c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c),
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  deleteRoleCard: (id) => set((state) => {
+    const next = {
+      ...state,
+      roleCards: state.roleCards.filter(c => c.id !== id),
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  getRoleCard: (id) => {
+    return get().roleCards.find(c => c.id === id)
+  },
 }))
