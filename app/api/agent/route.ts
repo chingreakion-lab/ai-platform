@@ -1,12 +1,48 @@
 import { NextRequest } from 'next/server'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { writeFile, unlink, readFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { tmpdir } from 'os'
 import { v4 as uuidv4 } from 'uuid'
 
 const execFileAsync = promisify(execFile)
+
+const WORKSPACE_CONTAINER = 'ai-platform-workspace'
+const WORKSPACE_PATH = '/workspace'
+
+// 启动工作区容器（如果还未运行）
+async function ensureWorkspaceRunning(): Promise<void> {
+  try {
+    // 检查容器是否运行
+    const checkCmd = await execFileAsync('docker', ['inspect', WORKSPACE_CONTAINER])
+    const data = JSON.parse(checkCmd.stdout)
+    if (data[0]?.State?.Running) return
+  } catch {
+    // 容器不存在或命令失败
+  }
+
+  // 尝试启动容器
+  try {
+    await execFileAsync('docker', ['start', WORKSPACE_CONTAINER], { timeout: 5000 })
+    await new Promise(resolve => setTimeout(resolve, 500))
+  } catch {
+    // 容器不存在，创建新的
+    try {
+      await execFileAsync('docker', [
+        'run', '-d',
+        '--name', WORKSPACE_CONTAINER,
+        '--memory', '512m',
+        '--cpus', '2',
+        '--network', 'none',
+        '-v', 'ai-workspace:/workspace',
+        'python:3.11-slim',
+        'tail', '-f', '/dev/null'
+      ], { timeout: 30000 })
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    } catch (e) {
+      console.error('工作区启动失败:', e)
+      throw e
+    }
+  }
+}
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 
@@ -22,7 +58,7 @@ const TOOLS_DOC = `你有以下工具可以使用，通过在回复中输出 XML
 
 <tool_call>
 <name>write_file</name>
-<path>文件路径（相对路径）</path>
+<path>文件路径（相对于 /workspace）</path>
 <content>
 文件内容
 </content>
@@ -30,12 +66,12 @@ const TOOLS_DOC = `你有以下工具可以使用，通过在回复中输出 XML
 
 <tool_call>
 <name>read_file</name>
-<path>文件路径（相对路径）</path>
+<path>文件路径（相对于 /workspace）</path>
 </tool_call>
 
 <tool_call>
 <name>shell</name>
-<cmd>bash命令（在工作目录下执行）</cmd>
+<cmd>bash命令（在 /workspace 工作目录下执行）</cmd>
 </tool_call>
 
 规则：
@@ -43,19 +79,20 @@ const TOOLS_DOC = `你有以下工具可以使用，通过在回复中输出 XML
 - 工具结果会作为 <tool_result> 返回给你
 - 任务完成后，输出 <done>最终结论或结果摘要</done> 来结束
 - 不需要工具时直接回答，再输出 <done>...</done>
-- 遇到错误要自己分析并修复，不要放弃`
+- 遇到错误要自己分析并修复，不要放弃
+- 所有文件和代码都在持久化工作区内，前面任务的文件可以直接使用`
 
-const LANG_CONFIG: Record<string, { image: string; fileExt: string; runCmd: (f: string) => string[] }> = {
-  python:     { image: 'python:3.11-alpine', fileExt: 'py', runCmd: f => ['python', f] },
-  python3:    { image: 'python:3.11-alpine', fileExt: 'py', runCmd: f => ['python', f] },
-  javascript: { image: 'node:20-alpine',     fileExt: 'js', runCmd: f => ['node', f] },
-  js:         { image: 'node:20-alpine',     fileExt: 'js', runCmd: f => ['node', f] },
-  typescript: { image: 'node:20-alpine',     fileExt: 'ts', runCmd: f => ['sh', '-c', `npx --yes tsx ${f}`] },
-  ts:         { image: 'node:20-alpine',     fileExt: 'ts', runCmd: f => ['sh', '-c', `npx --yes tsx ${f}`] },
-  bash:       { image: 'alpine:latest',      fileExt: 'sh', runCmd: f => ['sh', f] },
-  sh:         { image: 'alpine:latest',      fileExt: 'sh', runCmd: f => ['sh', f] },
-  ruby:       { image: 'ruby:3.2-alpine',    fileExt: 'rb', runCmd: f => ['ruby', f] },
-  go:         { image: 'golang:1.21-alpine', fileExt: 'go', runCmd: f => ['go', 'run', f] },
+const LANG_CONFIG: Record<string, { fileExt: string; runCmd: (f: string) => string[] }> = {
+  python:     { fileExt: 'py', runCmd: f => ['python', f] },
+  python3:    { fileExt: 'py', runCmd: f => ['python', f] },
+  javascript: { fileExt: 'js', runCmd: f => ['node', f] },
+  js:         { fileExt: 'js', runCmd: f => ['node', f] },
+  typescript: { fileExt: 'ts', runCmd: f => ['sh', '-c', `npx --yes tsx ${f}`] },
+  ts:         { fileExt: 'ts', runCmd: f => ['sh', '-c', `npx --yes tsx ${f}`] },
+  bash:       { fileExt: 'sh', runCmd: f => ['sh', f] },
+  sh:         { fileExt: 'sh', runCmd: f => ['sh', f] },
+  ruby:       { fileExt: 'rb', runCmd: f => ['ruby', f] },
+  go:         { fileExt: 'go', runCmd: f => ['go', 'run', f] },
 }
 
 // ─── Tool executors ───────────────────────────────────────────────────────────
@@ -65,20 +102,21 @@ async function executeCode(language: string, code: string): Promise<string> {
   const config = LANG_CONFIG[lang]
   if (!config) return `不支持的语言: ${language}`
 
-  const tmpFile = join(tmpdir(), `agent-${uuidv4()}.${config.fileExt}`)
-  await writeFile(tmpFile, code, 'utf8')
-
-  const containerPath = `/code/main.${config.fileExt}`
-  const dockerArgs = [
-    'run', '--rm', '--network', 'none', '--memory', '256m', '--cpus', '1',
-    '--pids-limit', '64', '--read-only', '--tmpfs', '/tmp:size=50m',
-    '-v', `${tmpFile}:${containerPath}:ro`,
-    '--security-opt', 'no-new-privileges',
-    config.image, ...config.runCmd(containerPath),
-  ]
+  // 生成随机文件名并在容器内创建
+  const fileName = `code-${uuidv4()}.${config.fileExt}`
+  const containerPath = `${WORKSPACE_PATH}/${fileName}`
 
   try {
-    const result = await execFileAsync('docker', dockerArgs, {
+    // 思路：写代码到临时文件，然后在容器内执行
+    // Step 1: 写代码到容器内的临时文件
+    const writeCmd = ['bash', '-c', `cat > "${containerPath}" << 'EOF'\n${code}\nEOF`]
+    await execFileAsync('docker', ['exec', WORKSPACE_CONTAINER, ...writeCmd], { timeout: 5000 })
+
+    // Step 2: 执行代码
+    const runCmd = config.runCmd(containerPath)
+    const execCmd = ['exec', WORKSPACE_CONTAINER, ...runCmd]
+    
+    const result = await execFileAsync('docker', execCmd, {
       timeout: 30000, maxBuffer: 2 * 1024 * 1024,
     })
     const combined = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
@@ -88,39 +126,57 @@ async function executeCode(language: string, code: string): Promise<string> {
     const combined = [e.stdout, e.stderr].filter(Boolean).join('\n').trim()
     if (e.killed) return `⏱ 执行超时（30秒）\n${combined}`
     return `❌ 退出码 ${e.code}\n${combined || '(无输出)'}`
-  } finally {
-    try { await unlink(tmpFile) } catch {}
   }
 }
 
 async function writeFileToWorkspace(workDir: string, path: string, content: string): Promise<string> {
-  const fullPath = join(workDir, path.replace(/^\//, ''))
-  await mkdir(fullPath.replace(/\/[^/]+$/, ''), { recursive: true })
-  await writeFile(fullPath, content, 'utf8')
-  return `✅ 已写入: ${path} (${content.length} 字符)`
+  try {
+    // 确保目录存在
+    const dirPath = path.replace(/\/[^/]*$/, '') || '.'
+    const dirCmd = ['sh', '-c', `mkdir -p "${WORKSPACE_PATH}/${dirPath}"`]
+    await execFileAsync('docker', ['exec', WORKSPACE_CONTAINER, ...dirCmd], { timeout: 5000 })
+
+    // 写入文件（处理特殊字符）
+    const fullPath = `${WORKSPACE_PATH}/${path.replace(/^\//, '')}`
+    const writeCmd = [
+      'bash', '-c',
+      `cat > "${fullPath}" << 'EOF'\n${content}\nEOF`
+    ]
+    await execFileAsync('docker', ['exec', WORKSPACE_CONTAINER, ...writeCmd], { timeout: 5000 })
+    
+    return `✅ 已写入: ${path} (${content.length} 字符)`
+  } catch (e) {
+    return `❌ 写入失败: ${String(e)}`
+  }
 }
 
 async function readFileFromWorkspace(workDir: string, path: string): Promise<string> {
   try {
-    const fullPath = join(workDir, path.replace(/^\//, ''))
-    const content = await readFile(fullPath, 'utf8')
+    const fullPath = `${WORKSPACE_PATH}/${path.replace(/^\//, '')}`
+    const result = await execFileAsync('docker', ['exec', WORKSPACE_CONTAINER, 'cat', fullPath], {
+      timeout: 5000, maxBuffer: 8 * 1024 * 1024,
+    })
+    const content = result.stdout
     return content.slice(0, 8000) + (content.length > 8000 ? '\n...(已截断)' : '')
-  } catch {
-    return `❌ 文件不存在: ${path}`
+  } catch (e) {
+    return `❌ 文件不存在或读取失败: ${path}`
   }
 }
 
 async function shellExec(workDir: string, cmd: string): Promise<string> {
   try {
-    const result = await execFileAsync('bash', ['-c', cmd], {
-      cwd: workDir, timeout: 15000, maxBuffer: 512 * 1024,
-      env: { ...process.env, PATH: `/usr/local/bin:/usr/bin:/bin:${process.env.PATH}` },
+    const result = await execFileAsync('docker', [
+      'exec', '-w', WORKSPACE_PATH, WORKSPACE_CONTAINER,
+      'bash', '-c', cmd
+    ], {
+      timeout: 15000, maxBuffer: 512 * 1024,
     })
     const combined = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
     return combined || '(命令执行成功，无输出)'
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; code?: number }
+    const e = err as { stdout?: string; stderr?: string; code?: number; killed?: boolean }
     const combined = [e.stdout, e.stderr].filter(Boolean).join('\n').trim()
+    if (e.killed) return `⏱ 执行超时（15秒）\n${combined}`
     return `❌ 退出码 ${e.code}\n${combined || '(无输出)'}`
   }
 }
@@ -208,9 +264,15 @@ function sseEvent(type: string, payload: object): string {
 export async function POST(req: NextRequest) {
   const { provider, model, apiKey, agentName, task, history, systemBase, groupId } = await req.json()
 
-  // Create a per-agent workspace dir
-  const workDir = join(tmpdir(), `agent-workspace-${uuidv4()}`)
-  await mkdir(workDir, { recursive: true })
+  // 确保工作区容器在运行
+  try {
+    await ensureWorkspaceRunning()
+  } catch (e) {
+    return new Response(
+      `data: ${JSON.stringify({ type: 'error', message: `工作区启动失败: ${String(e)}` })}\n\n`,
+      { status: 500, headers: { 'Content-Type': 'text/event-stream' } }
+    )
+  }
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
@@ -220,7 +282,8 @@ export async function POST(req: NextRequest) {
       const systemPrompt = [
         systemBase || `你是 ${agentName}，一个自主AI工程师。`,
         TOOLS_DOC,
-        `\n当前工作目录: ${workDir}`,
+        `\n当前工作目录: ${WORKSPACE_PATH}`,
+        `\n重要：你写的文件和执行的命令都在容器内持久化工作区，其他 AI agent 可以共享你的文件和之前安装的依赖。`,
       ].join('\n\n')
 
       // Build conversation history for this agent
@@ -283,13 +346,13 @@ export async function POST(req: NextRequest) {
               toolResult = await executeCode(toolCall.args.language || 'python', toolCall.args.code || '')
               break
             case 'write_file':
-              toolResult = await writeFileToWorkspace(workDir, toolCall.args.path || 'output.txt', toolCall.args.content || '')
+              toolResult = await writeFileToWorkspace('', toolCall.args.path || 'output.txt', toolCall.args.content || '')
               break
             case 'read_file':
-              toolResult = await readFileFromWorkspace(workDir, toolCall.args.path || '')
+              toolResult = await readFileFromWorkspace('', toolCall.args.path || '')
               break
             case 'shell':
-              toolResult = await shellExec(workDir, toolCall.args.cmd || '')
+              toolResult = await shellExec('', toolCall.args.cmd || '')
               break
             default:
               toolResult = `未知工具: ${toolCall.name}`
@@ -309,11 +372,7 @@ export async function POST(req: NextRequest) {
         push(sseEvent('done', { agent: agentName, summary: `已达到最大迭代次数 (${MAX_ITERATIONS})` }))
       }
 
-      // Cleanup workspace
-      try {
-        await execFileAsync('rm', ['-rf', workDir])
-      } catch {}
-
+      // 不再清理工作目录，容器和文件保持持久化
       controller.close()
     }
   })

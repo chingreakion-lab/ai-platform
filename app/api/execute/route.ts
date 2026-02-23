@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { writeFile, unlink } from 'fs/promises'
-import { join } from 'path'
-import { tmpdir } from 'os'
 import { v4 as uuidv4 } from 'uuid'
 
 const execFileAsync = promisify(execFile)
 
-// Language → Docker image + execution strategy
+const WORKSPACE_CONTAINER = 'ai-platform-workspace'
+const WORKSPACE_PATH = '/workspace'
+
+// Language → execution strategy (image 字段仅用于兼容，docker exec 时已指定容器)
 const LANG_CONFIG: Record<string, {
   image: string
   fileExt: string
-  buildCmd?: (filePath: string) => string[]
   runCmd: (filePath: string) => string[]
 }> = {
   python: {
@@ -38,7 +37,6 @@ const LANG_CONFIG: Record<string, {
   typescript: {
     image: 'node:20-alpine',
     fileExt: 'ts',
-    // Use ts-node via npx
     runCmd: (f) => ['sh', '-c', `npx --yes tsx ${f}`],
   },
   ts: {
@@ -73,10 +71,39 @@ const LANG_CONFIG: Record<string, {
   },
 }
 
-export async function POST(req: NextRequest) {
-  const tmpFile = join(tmpdir(), `exec-${uuidv4()}`)
-  let codeFilePath = ''
+// 启动工作区容器（如果还未运行）
+async function ensureWorkspaceRunning(): Promise<void> {
+  try {
+    const result = await execFileAsync('docker', ['inspect', WORKSPACE_CONTAINER])
+    const data = JSON.parse(result.stdout)
+    if (data[0]?.State?.Running) return
+  } catch {
+    // 容器不存在
+  }
 
+  try {
+    await execFileAsync('docker', ['start', WORKSPACE_CONTAINER], { timeout: 5000 })
+    await new Promise(resolve => setTimeout(resolve, 500))
+  } catch {
+    try {
+      await execFileAsync('docker', [
+        'run', '-d',
+        '--name', WORKSPACE_CONTAINER,
+        '--memory', '512m',
+        '--cpus', '2',
+        '--network', 'none',
+        '-v', 'ai-workspace:/workspace',
+        'python:3.11-slim',
+        'tail', '-f', '/dev/null'
+      ], { timeout: 30000 })
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    } catch (e) {
+      throw e
+    }
+  }
+}
+
+export async function POST(req: NextRequest) {
   try {
     const { code, language = 'python' } = await req.json()
 
@@ -93,39 +120,45 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // Write code to a temp file
-    const codeFile = `${tmpFile}.${config.fileExt}`
-    codeFilePath = codeFile
-    await writeFile(codeFile, code, 'utf8')
+    // 确保工作区容器在运行
+    try {
+      await ensureWorkspaceRunning()
+    } catch (e) {
+      return NextResponse.json({
+        error: `工作区启动失败: ${String(e)}`,
+        output: '',
+        exitCode: -1,
+      }, { status: 503 })
+    }
 
-    // Build docker run args
-    // Mount the temp file into the container as /code/main.<ext>
-    const containerPath = `/code/main.${config.fileExt}`
+    // 在容器内临时创建代码文件
+    const fileName = `execute-${uuidv4()}.${config.fileExt}`
+    const containerPath = `${WORKSPACE_PATH}/${fileName}`
+
+    // Step 1: 写入代码到容器
+    const writeCmd = ['bash', '-c', `cat > "${containerPath}" << 'EOF'\n${code}\nEOF`]
+    try {
+      await execFileAsync('docker', ['exec', WORKSPACE_CONTAINER, ...writeCmd], { timeout: 5000 })
+    } catch (e) {
+      return NextResponse.json({
+        error: `无法写入代码文件: ${String(e)}`,
+        output: '',
+        exitCode: -1,
+      }, { status: 500 })
+    }
+
+    // Step 2: 执行代码
     const runArgs = config.runCmd(containerPath)
-
-    const dockerArgs = [
-      'run',
-      '--rm',                          // Auto-remove after exit
-      '--network', 'none',             // No network
-      '--memory', '128m',              // 128MB RAM
-      '--cpus', '0.5',                 // 50% CPU
-      '--pids-limit', '64',            // Max 64 processes
-      '--read-only',                   // Read-only filesystem
-      '--tmpfs', '/tmp:size=10m',      // Allow /tmp writes
-      '-v', `${codeFile}:${containerPath}:ro`,  // Mount code file read-only
-      '--security-opt', 'no-new-privileges',
-      config.image,
-      ...runArgs,
-    ]
+    const execCmd = ['exec', '-w', WORKSPACE_PATH, WORKSPACE_CONTAINER, ...runArgs]
 
     let stdout = ''
     let stderr = ''
     let exitCode = 0
 
     try {
-      const result = await execFileAsync('docker', dockerArgs, {
-        timeout: 15000,           // 15s timeout
-        maxBuffer: 1024 * 1024,   // 1MB output limit
+      const result = await execFileAsync('docker', execCmd, {
+        timeout: 15000,
+        maxBuffer: 1024 * 1024,
       })
       stdout = result.stdout
       stderr = result.stderr
@@ -143,18 +176,8 @@ export async function POST(req: NextRequest) {
           language: lang,
         })
       }
-
-      // Docker not running
-      if (stderr.includes('Cannot connect') || stderr.includes('docker daemon')) {
-        return NextResponse.json({
-          error: '⚠️ Docker 未运行，请先启动 Docker Desktop',
-          output: '',
-          exitCode: -1,
-        }, { status: 503 })
-      }
     }
 
-    // Combine stdout + stderr (like a real terminal)
     const combined = [stdout, stderr].filter(Boolean).join('\n').trim()
 
     return NextResponse.json({
@@ -167,18 +190,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    if (message.includes('ENOENT') && message.includes('docker')) {
-      return NextResponse.json({
-        error: '⚠️ 未找到 docker 命令，请确认 Docker Desktop 已安装并运行',
-        output: '',
-        exitCode: -1,
-      }, { status: 503 })
-    }
     return NextResponse.json({ error: message, output: '', exitCode: -1 }, { status: 500 })
-  } finally {
-    // Cleanup temp file
-    if (codeFilePath) {
-      try { await unlink(codeFilePath) } catch {}
-    }
   }
 }
