@@ -112,7 +112,9 @@ export async function POST(req: NextRequest) {
 
             let hasToolUse = false
             const assistantContent: any[] = []
+            const toolResults: { tool_use_id: string; content: string }[] = []
 
+            // First pass: collect all blocks and execute tools
             for (const block of response.content) {
               if (block.type === 'text') {
                 if (block.text.trim()) {
@@ -129,15 +131,7 @@ export async function POST(req: NextRequest) {
                 push(sseEvent('tool_result', { agent: agentName, tool: block.name, result: result.output }))
                 
                 assistantContent.push(block)
-                messages.push({ role: 'assistant', content: assistantContent })
-                messages.push({
-                  role: 'user',
-                  content: [{
-                    type: 'tool_result' as const,
-                    tool_use_id: block.id,
-                    content: result.output,
-                  }]
-                })
+                toolResults.push({ tool_use_id: block.id, content: result.output })
               }
             }
 
@@ -146,6 +140,17 @@ export async function POST(req: NextRequest) {
               const finalText = response.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n')
               push(sseEvent('done', { agent: agentName, summary: finalText || '任务完成' }))
               break
+            } else {
+              // Push assistant message once (with all blocks), then all tool results
+              messages.push({ role: 'assistant', content: assistantContent })
+              messages.push({
+                role: 'user',
+                content: toolResults.map(tr => ({
+                  type: 'tool_result' as const,
+                  tool_use_id: tr.tool_use_id,
+                  content: tr.content,
+                }))
+              })
             }
           }
 

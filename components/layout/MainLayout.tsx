@@ -99,7 +99,7 @@ export function MainLayout() {
             
             {/* Content area */}
             <div className="flex-1 bg-white overflow-hidden flex flex-col">
-              {activeView === 'main' && <FriendChatView conversation={activeConversation} friend={activeFriend} onBack={() => setActiveView('main')} />}
+              {activeView === 'main' && <FriendChatView conversation={activeConversation} friend={activeFriend} onBack={() => setActiveConversation(null)} />}
               {activeView === 'feature' && <FeatureView />}
               {activeView === 'outer' && <OuterDialog />}
               {activeView === 'settings' && <SettingsView />}
@@ -167,8 +167,8 @@ export function MainLayout() {
           {showContactSidebar && (
             <ContactSidebar
               activeConversationId={activeConversationId}
-              onSelectConversation={() => {}}
-              onSelectGroup={() => {}}
+              onSelectConversation={handleSelectConversation}
+              onSelectGroup={handleSelectGroup}
             />
           )}
           
