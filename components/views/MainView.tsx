@@ -203,7 +203,7 @@ export function MainView() {
   }
 
   const statusColor: Record<string, string> = {
-    planning: 'bg-gray-100 text-gray-600',
+    planning: 'bg-[#1a1b2e] text-white/60',
     'in-progress': 'bg-blue-100 text-blue-600',
     done: 'bg-green-100 text-green-600',
     paused: 'bg-yellow-100 text-yellow-600',
@@ -215,12 +215,12 @@ export function MainView() {
   return (
     <div className="flex h-full">
       {/* Left: group list */}
-      <div className="w-64 border-r bg-gray-50 flex flex-col shrink-0">
+      <div className="w-64 border-r bg-[#13131e] flex flex-col shrink-0">
         <div className="p-3 border-b flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+          <span className="text-sm font-semibold text-white/75 flex items-center gap-1.5">
             <Users className="h-4 w-4" /> 群组
           </span>
-          <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-500 hover:text-blue-500"
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-white/40 hover:text-blue-500"
             onClick={() => setShowCreateGroup(true)}>
             <Plus className="h-4 w-4" />
           </Button>
@@ -228,8 +228,8 @@ export function MainView() {
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
             {groups.length === 0 && (
-              <div className="text-center py-8 text-xs text-gray-400">
-                <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+              <div className="text-center py-8 text-xs text-white/30">
+                <Users className="h-8 w-8 mx-auto mb-2 text-white/20" />
                 点击 + 创建第一个群组
               </div>
             )}
@@ -240,7 +240,7 @@ export function MainView() {
                 <button key={group.id}
                   onClick={() => setSelectedGroupId(group.id)}
                   className={`w-full text-left rounded-lg p-2.5 transition-colors ${
-                    selectedGroupId === group.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-white border border-transparent'
+                    selectedGroupId === group.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-[#0e0f1a] border border-transparent'
                   }`}>
                   <div className="flex items-center gap-2 mb-1">
                     <div className="flex -space-x-1">
@@ -251,15 +251,15 @@ export function MainView() {
                         </div>
                       ))}
                     </div>
-                    <span className="text-xs font-semibold text-gray-800 truncate">{group.name}</span>
+                    <span className="text-xs font-semibold text-white/85 truncate">{group.name}</span>
                   </div>
                   {lastMsg && (
-                    <p className="text-[11px] text-gray-400 truncate">{lastMsg.senderName}: {lastMsg.content}</p>
+                    <p className="text-[11px] text-white/30 truncate">{lastMsg.senderName}: {lastMsg.content}</p>
                   )}
                   {group.boundBoardIds.length > 0 && (
                     <div className="flex items-center gap-1 mt-1">
-                      <Link2 className="h-2.5 w-2.5 text-gray-300" />
-                      <span className="text-[10px] text-gray-400">{group.boundBoardIds.length} 个功能板块</span>
+                      <Link2 className="h-2.5 w-2.5 text-white/20" />
+                      <span className="text-[10px] text-white/30">{group.boundBoardIds.length} 个功能板块</span>
                     </div>
                   )}
                 </button>
@@ -273,10 +273,10 @@ export function MainView() {
       {selectedGroup ? (
         <div className="flex-1 flex flex-col min-w-0">
           {/* Group header */}
-          <div className="border-b px-4 py-2.5 bg-white flex items-center justify-between shrink-0">
+          <div className="border-b px-4 py-2.5 bg-[#0e0f1a] flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-gray-800">{selectedGroup.name}</h2>
+                <h2 className="text-sm font-semibold text-white/85">{selectedGroup.name}</h2>
                 <div className="flex items-center gap-2 mt-0.5">
                   {groupMembers.map(m => {
                     const memberInGroup = selectedGroup?.members.find(gm => gm.friendId === m.id)
@@ -286,10 +286,10 @@ export function MainView() {
                         key={m.id}
                         title="点击分配角色"
                         onClick={() => { setRoleDialogFriendId(m.id); setRoleDialogOpen(true) }}
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-white/10 hover:border-blue-300 hover:bg-blue-50 transition-colors"
                       >
                         <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ backgroundColor: m.avatar }} />
-                        <span className="text-[11px] text-gray-600">{m.name}</span>
+                        <span className="text-[11px] text-white/60">{m.name}</span>
                         {roleCard && (
                           <span className="text-[10px] text-blue-500">{roleCard.emoji}</span>
                         )}
@@ -322,20 +322,20 @@ export function MainView() {
 
           {/* Bound boards preview */}
           {boundBoards.length > 0 && (
-            <div className="border-b bg-gray-50 px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
+            <div className="border-b bg-[#13131e] px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
               {boundBoards.map(board => (
                 <button key={board.id}
                   onClick={() => { setActiveBoard(board.id); setActiveView('feature') }}
-                  className="flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 text-xs hover:border-blue-300 hover:shadow-sm transition-all shrink-0">
-                  <span className="font-medium text-gray-700">{board.name}</span>
+                  className="flex items-center gap-2 bg-[#0e0f1a] border rounded-lg px-3 py-1.5 text-xs hover:border-blue-300 hover:shadow-sm transition-all shrink-0">
+                  <span className="font-medium text-white/75">{board.name}</span>
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor[board.status]}`}>
                     {statusLabel[board.status]}
                   </span>
                   <div className="w-16">
                     <Progress value={board.progress} className="h-1" />
                   </div>
-                  <span className="text-gray-400">{board.progress}%</span>
-                  <ChevronRight className="h-3 w-3 text-gray-300" />
+                  <span className="text-white/30">{board.progress}%</span>
+                  <ChevronRight className="h-3 w-3 text-white/20" />
                 </button>
               ))}
             </div>
@@ -353,7 +353,7 @@ export function MainView() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-gray-50/50">
+        <div className="flex-1 flex items-center justify-center bg-[#13131e]/50">
           <div className="max-w-lg w-full mx-auto px-6 py-8 text-center">
             {groups.length === 0 ? (
               <>
@@ -361,8 +361,8 @@ export function MainView() {
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mx-auto mb-5 shadow-lg">
                   <Users className="h-8 w-8 text-white" />
                 </div>
-                <h2 className="text-lg font-bold text-gray-800 mb-2">欢迎使用 AI 协作平台</h2>
-                <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                <h2 className="text-lg font-bold text-white/85 mb-2">欢迎使用 AI 协作平台</h2>
+                <p className="text-sm text-white/40 mb-6 leading-relaxed">
                   创建一个群组，把你的 AI 好友集合起来，像团队一样协作完成编程任务。
                 </p>
                 <div className="grid grid-cols-3 gap-3 mb-6 text-left">
@@ -371,10 +371,10 @@ export function MainView() {
                     { icon: '👥', title: '多 AI 协作', desc: '多个 AI 依次完成不同分工' },
                     { icon: '📦', title: '代码沙盒', desc: '在 Docker 容器里安全运行代码' },
                   ].map(item => (
-                    <div key={item.title} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                    <div key={item.title} className="bg-[#0e0f1a] rounded-xl p-3 border border-white/[0.06] shadow-sm">
                       <div className="text-2xl mb-1.5">{item.icon}</div>
-                      <p className="text-xs font-semibold text-gray-700">{item.title}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{item.desc}</p>
+                      <p className="text-xs font-semibold text-white/75">{item.title}</p>
+                      <p className="text-[11px] text-white/30 mt-0.5 leading-snug">{item.desc}</p>
                     </div>
                   ))}
                 </div>
@@ -396,11 +396,11 @@ export function MainView() {
             ) : (
               <>
                 {/* Has groups but none selected */}
-                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                  <Users className="h-6 w-6 text-gray-400" />
+                <div className="w-12 h-12 rounded-xl bg-[#1a1b2e] flex items-center justify-center mx-auto mb-4">
+                  <Users className="h-6 w-6 text-white/30" />
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">选择左侧群组开始协作</p>
-                <p className="text-xs text-gray-400 mb-4">或者创建一个新群组</p>
+                <p className="text-sm font-medium text-white/60 mb-1">选择左侧群组开始协作</p>
+                <p className="text-xs text-white/30 mb-4">或者创建一个新群组</p>
                 <Button size="sm" className="gap-1.5 h-8 px-4 text-xs" onClick={() => setShowCreateGroup(true)}>
                   <Plus className="h-3.5 w-3.5" /> 新建群组
                 </Button>
@@ -418,13 +418,13 @@ export function MainView() {
           </DialogHeader>
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">群组名称</label>
+              <label className="text-sm font-medium text-white/75 block mb-1">群组名称</label>
               <Input value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
                 placeholder="输入群组名称" autoFocus />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">
-                选择成员 <span className="text-gray-400 font-normal text-xs ml-1">— 选中后可为每人分配角色</span>
+              <label className="text-sm font-medium text-white/75 block mb-2">
+                选择成员 <span className="text-white/30 font-normal text-xs ml-1">— 选中后可为每人分配角色</span>
               </label>
               <div className="space-y-3">
                 {friends.map(friend => {
@@ -433,7 +433,7 @@ export function MainView() {
                   const assignedCard = roleCards.find(c => c.id === assignedId)
                   return (
                     <div key={friend.id}
-                      className={`rounded-xl border transition-all ${checked ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white'}`}>
+                      className={`rounded-xl border transition-all ${checked ? 'border-blue-200 bg-blue-50/40' : 'border-white/[0.06] bg-[#0e0f1a]'}`}>
                       {/* Member row */}
                       <label className="flex items-center gap-3 p-3 cursor-pointer">
                         <input type="checkbox" checked={checked}
@@ -452,8 +452,8 @@ export function MainView() {
                           {friend.name[0]}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800">{friend.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{friend.model}</p>
+                          <p className="text-sm font-medium text-white/85">{friend.name}</p>
+                          <p className="text-xs text-white/30 truncate">{friend.model}</p>
                         </div>
                         <Badge variant={friend.role === 'chief' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
                           {friend.role === 'chief' ? '主工程师' : '功能工程师'}
@@ -463,7 +463,7 @@ export function MainView() {
                       {/* Inline role picker — only when checked */}
                       {checked && (
                         <div className="px-3 pb-3">
-                          <p className="text-[11px] text-gray-500 mb-2 font-medium">分配角色（可选）</p>
+                          <p className="text-[11px] text-white/40 mb-2 font-medium">分配角色（可选）</p>
                           <div className="grid grid-cols-4 gap-1.5">
                             {/* No role */}
                             <button
@@ -472,11 +472,11 @@ export function MainView() {
                               className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border text-center transition-all ${
                                 !assignedId
                                   ? 'border-blue-400 bg-blue-100 ring-1 ring-blue-300'
-                                  : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                  : 'border-white/10 hover:border-blue-300 hover:bg-blue-50'
                               }`}
                             >
                               <span className="text-lg">👤</span>
-                              <span className="text-[10px] text-gray-500 leading-tight">默认</span>
+                              <span className="text-[10px] text-white/40 leading-tight">默认</span>
                             </button>
                             {roleCards.map(card => (
                               <button
@@ -486,12 +486,12 @@ export function MainView() {
                                 className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border text-center transition-all ${
                                   assignedId === card.id
                                     ? 'border-blue-400 bg-blue-100 ring-1 ring-blue-300'
-                                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                    : 'border-white/10 hover:border-blue-300 hover:bg-blue-50'
                                 }`}
                                 title={card.expertArea}
                               >
                                 <span className="text-lg">{card.emoji}</span>
-                                <span className="text-[10px] text-gray-600 leading-tight truncate w-full text-center">{card.name}</span>
+                                <span className="text-[10px] text-white/60 leading-tight truncate w-full text-center">{card.name}</span>
                               </button>
                             ))}
                           </div>
@@ -541,7 +541,7 @@ export function MainView() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>🎭 分配角色</DialogTitle>
-            <p className="text-xs text-gray-400 mt-0.5">为每位成员选择专属角色，角色将影响 AI 的回复风格与专注方向</p>
+            <p className="text-xs text-white/30 mt-0.5">为每位成员选择专属角色，角色将影响 AI 的回复风格与专注方向</p>
           </DialogHeader>
 
           {/* Member tab selector */}
@@ -558,7 +558,7 @@ export function MainView() {
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                       isActive
                         ? 'border-blue-400 bg-blue-100 text-blue-700'
-                        : 'border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+                        : 'border-white/10 text-white/60 hover:border-blue-300 hover:bg-blue-50'
                     }`}
                   >
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: m.avatar }} />
@@ -584,12 +584,12 @@ export function MainView() {
               className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-colors ${
                 !selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
                   ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                  : 'border-white/10 hover:border-blue-400 hover:bg-blue-50'
               }`}
             >
               <span className="text-2xl">👤</span>
-              <span className="text-xs font-medium text-gray-600">无角色</span>
-              <span className="text-[10px] text-gray-400 text-center">使用默认行为</span>
+              <span className="text-xs font-medium text-white/60">无角色</span>
+              <span className="text-[10px] text-white/30 text-center">使用默认行为</span>
             </button>
             {roleCards.map(card => {
               const currentRoleId = selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
@@ -605,12 +605,12 @@ export function MainView() {
                   className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-colors ${
                     isSelected
                       ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-300'
-                      : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                      : 'border-white/10 hover:border-blue-400 hover:bg-blue-50'
                   }`}
                 >
                   <span className="text-2xl">{card.emoji}</span>
-                  <span className="text-xs font-medium text-gray-700">{card.name}</span>
-                  <span className="text-[10px] text-gray-400 text-center line-clamp-2">{card.expertArea}</span>
+                  <span className="text-xs font-medium text-white/75">{card.name}</span>
+                  <span className="text-[10px] text-white/30 text-center line-clamp-2">{card.expertArea}</span>
                 </button>
               )
             })}

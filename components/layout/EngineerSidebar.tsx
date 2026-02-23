@@ -12,7 +12,7 @@ export function EngineerSidebar() {
   if (!sidebarOpen) return null
 
   const taskStatusIcon = {
-    pending: <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />,
+    pending: <Clock className="h-3.5 w-3.5 text-white/30 shrink-0" />,
     running: <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin shrink-0" />,
     done: <CheckCircle2 className="h-3.5 w-3.5 text-green-400 shrink-0" />,
     failed: <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />,
@@ -33,11 +33,11 @@ export function EngineerSidebar() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#2d2d2d]">
           <div className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-green-400" />
-            <span className="text-sm font-semibold text-gray-200">工程师控制台</span>
+            <span className="text-sm font-semibold text-white/15">工程师控制台</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-500 hover:text-white hover:bg-[#2d2d2d]"
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-white/40 hover:text-white hover:bg-[#2d2d2d]"
               onClick={() => setSidebarOpen(false)}>
               <X className="h-3.5 w-3.5" />
             </Button>
@@ -46,10 +46,10 @@ export function EngineerSidebar() {
 
         <Tabs defaultValue="tasks" className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="mx-3 mt-3 mb-1 bg-[#252525] border border-[#333] rounded-md p-0.5 h-8">
-            <TabsTrigger value="tasks" className="flex-1 text-xs h-7 data-[state=active]:bg-[#333] data-[state=active]:text-white text-gray-500 rounded">
+            <TabsTrigger value="tasks" className="flex-1 text-xs h-7 data-[state=active]:bg-[#333] data-[state=active]:text-white text-white/40 rounded">
               任务 {tasks.length > 0 && <span className="ml-1 bg-[#444] rounded px-1 text-[10px]">{tasks.length}</span>}
             </TabsTrigger>
-            <TabsTrigger value="logs" className="flex-1 text-xs h-7 data-[state=active]:bg-[#333] data-[state=active]:text-white text-gray-500 rounded">
+            <TabsTrigger value="logs" className="flex-1 text-xs h-7 data-[state=active]:bg-[#333] data-[state=active]:text-white text-white/40 rounded">
               日志 {logs.length > 0 && <span className="ml-1 bg-[#444] rounded px-1 text-[10px]">{logs.length}</span>}
             </TabsTrigger>
           </TabsList>
@@ -68,12 +68,12 @@ export function EngineerSidebar() {
                     <div className="flex items-start gap-2">
                       <div className="mt-0.5">{taskStatusIcon[task.status]}</div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-gray-300 leading-tight">{task.title}</p>
+                        <p className="text-xs font-medium text-white/20 leading-tight">{task.title}</p>
                         {task.description && (
-                          <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{task.description}</p>
+                          <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{task.description}</p>
                         )}
                         {task.result && (
-                          <p className="text-[11px] text-gray-400 mt-1 line-clamp-2 italic border-l-2 border-[#3d3d3d] pl-2">{task.result}</p>
+                          <p className="text-[11px] text-white/30 mt-1 line-clamp-2 italic border-l-2 border-[#3d3d3d] pl-2">{task.result}</p>
                         )}
                         <p className="text-[10px] text-[#444] mt-1">{format(task.createdAt, 'MM-dd HH:mm:ss')}</p>
                       </div>
@@ -104,7 +104,7 @@ export function EngineerSidebar() {
                   <div key={log.id} className="text-[11px] flex gap-2 py-0.5 hover:bg-[#222] rounded px-1">
                     <span className="text-[#444] shrink-0 tabular-nums">{format(log.timestamp, 'HH:mm:ss')}</span>
                     <span className={`shrink-0 w-12 ${logLevelStyle[log.level]}`}>[{log.level.toUpperCase()}]</span>
-                    <span className="text-gray-400 break-all">{log.message}</span>
+                    <span className="text-white/30 break-all">{log.message}</span>
                   </div>
                 ))}
               </div>

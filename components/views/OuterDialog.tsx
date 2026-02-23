@@ -49,7 +49,7 @@ export function OuterDialog() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="border-b px-6 py-3 bg-white flex items-center gap-3 shrink-0">
+      <div className="border-b px-6 py-3 bg-[#0e0f1a] flex items-center gap-3 shrink-0">
         {chief && (
           <>
             <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold"
@@ -57,13 +57,13 @@ export function OuterDialog() {
               {chief.name[0]}
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-gray-800">{chief.name}</h2>
-              <p className="text-xs text-gray-400">主工程师 · {chief.model}</p>
+              <h2 className="text-sm font-semibold text-white/85">{chief.name}</h2>
+              <p className="text-xs text-white/30">主工程师 · {chief.model}</p>
             </div>
           </>
         )}
         {!chief && (
-          <div className="flex items-center gap-2 text-gray-400">
+          <div className="flex items-center gap-2 text-white/30">
             <Bot className="h-5 w-5" />
             <span className="text-sm">未配置主工程师</span>
           </div>

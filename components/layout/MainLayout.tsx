@@ -8,18 +8,20 @@ import { OuterDialog } from '@/components/views/OuterDialog'
 import { SettingsView } from '@/components/views/SettingsView'
 import { ContactSidebar } from '@/components/sidebar/ContactSidebar'
 import { EngineerSidebar } from '@/components/layout/EngineerSidebar'
-import { Button } from '@/components/ui/button'
-import { MessageSquare, LayoutGrid, Bot, Settings, PanelRight, Zap, Menu } from 'lucide-react'
+import { MessageSquare, LayoutGrid, Bot, Settings, Zap, PanelRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function MainLayout() {
-  const { activeView, setActiveView, toggleSidebar, tasks, hydrate, friends, groups, activeConversationId, conversations, setActiveGroup, setActiveConversation } = useAppStore()
-  const [showContactSidebar, setShowContactSidebar] = useState(true)
+  const {
+    activeView, setActiveView, toggleSidebar, tasks, hydrate,
+    friends, groups, activeConversationId, conversations,
+    setActiveGroup, setActiveConversation
+  } = useAppStore()
+
   const runningTasks = tasks.filter(t => t.status === 'running').length
-
-  // Get active friend and conversation
   const activeConversation = conversations.find(c => c.id === activeConversationId)
+  const activeFriend = activeConversation ? friends.find(f => f.id === activeConversation.friendId) : null
 
-  // BUG-1 fix: proper sidebar routing handlers
   const handleSelectGroup = (groupId: string) => {
     setActiveGroup(groupId)
     setActiveConversation(null)
@@ -28,161 +30,114 @@ export function MainLayout() {
 
   const handleSelectConversation = (convId: string) => {
     setActiveConversation(convId)
-    // activeView stays as-is; MainLayout will render FriendChatView when activeConversation is set
   }
-  const activeFriend = activeConversation ? friends.find(f => f.id === activeConversation.friendId) : null
 
   useEffect(() => { hydrate() }, [])
 
   const navItems = [
-    { id: 'main' as const, label: '主界面', icon: MessageSquare },
-    { id: 'feature' as const, label: '功能区', icon: LayoutGrid },
-    { id: 'outer' as const, label: '外层对话', icon: Bot },
-    { id: 'settings' as const, label: '设置', icon: Settings },
+    { id: 'main' as const, icon: MessageSquare, label: '对话' },
+    { id: 'feature' as const, icon: LayoutGrid, label: '功能区' },
+    { id: 'outer' as const, icon: Bot, label: '外层' },
   ]
 
-  // If viewing a 1:1 conversation, show FriendChatView instead
-  if (activeConversation && activeFriend) {
-    return (
-      <div className="flex flex-col h-screen bg-gray-100">
-        {/* Top nav with back button and settings */}
-        <header className="border-b bg-white px-4 py-0 flex items-center justify-between shrink-0 h-12 shadow-sm">
-          <div className="flex items-center gap-0.5">
-            <div className="flex items-center gap-1.5 mr-4 pr-4 border-r">
-              <Zap className="h-4 w-4 text-blue-500" />
-              <span className="font-bold text-sm text-gray-800">AI 协作平台</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`flex items-center gap-1.5 px-3 h-12 text-sm transition-all border-b-2 ${
-                  activeView === item.id
-                    ? 'border-blue-500 text-blue-600 font-medium'
-                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleSidebar}
-            className="relative text-xs gap-1.5 h-8 border-gray-200"
-          >
-            <PanelRight className="h-3.5 w-3.5" />
-            控制台
-            {runningTasks > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                {runningTasks}
-              </span>
-            )}
-          </Button>
-        </header>
+  const isInConversation = !!(activeConversation && activeFriend)
 
-        {/* Main content with sidebar */}
-        <main className="flex-1 overflow-hidden">
-          <div className="flex h-full">
-            {/* Contact sidebar */}
-            {showContactSidebar && (
-              <ContactSidebar
-                activeConversationId={activeConversationId}
-                onSelectConversation={handleSelectConversation}
-                onSelectGroup={handleSelectGroup}
-              />
-            )}
-            
-            {/* Content area */}
-            <div className="flex-1 bg-white overflow-hidden flex flex-col">
-              {activeView === 'main' && <FriendChatView conversation={activeConversation} friend={activeFriend} onBack={() => setActiveConversation(null)} />}
-              {activeView === 'feature' && <FeatureView />}
-              {activeView === 'outer' && <OuterDialog />}
-              {activeView === 'settings' && <SettingsView />}
-            </div>
-          </div>
-        </main>
-
-        <EngineerSidebar />
-      </div>
-    )
+  const renderContent = () => {
+    if (isInConversation) {
+      return <FriendChatView conversation={activeConversation!} friend={activeFriend!} onBack={() => setActiveConversation(null)} />
+    }
+    if (activeView === 'feature') return <FeatureView />
+    if (activeView === 'outer') return <OuterDialog />
+    if (activeView === 'settings') return <SettingsView />
+    return <MainView />
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Top nav */}
-      <header className="border-b bg-white px-4 py-0 flex items-center justify-between shrink-0 h-12 shadow-sm">
-        <div className="flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowContactSidebar(!showContactSidebar)}
-            className="h-8 w-8 mr-2"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-1.5 mr-4 pr-4 border-r">
-            <Zap className="h-4 w-4 text-blue-500" />
-            <span className="font-bold text-sm text-gray-800">AI 协作平台</span>
-          </div>
-          {navItems.map(item => (
+    <div className="flex h-screen overflow-hidden" style={{ background: '#0b0c14', color: '#e8e9f0' }}>
+
+      {/* ── Icon rail ── */}
+      <nav className="w-14 shrink-0 h-full flex flex-col items-center py-4 gap-1"
+        style={{ background: '#080910', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+
+        {/* Logo */}
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-5 shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 16px rgba(99,102,241,0.4)' }}>
+          <Zap className="h-4 w-4 text-white" />
+        </div>
+
+        {/* Nav items */}
+        {navItems.map(item => {
+          const isActive = activeView === item.id && !isInConversation
+          return (
             <button
               key={item.id}
-              onClick={() => setActiveView(item.id)}
-              className={`flex items-center gap-1.5 px-3 h-12 text-sm transition-all border-b-2 ${
-                activeView === item.id
-                  ? 'border-blue-500 text-blue-600 font-medium'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-              }`}
+              onClick={() => { setActiveView(item.id); setActiveConversation(null) }}
+              title={item.label}
+              className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200"
+              style={{
+                background: isActive ? 'rgba(99,102,241,0.2)' : 'transparent',
+                color: isActive ? '#818cf8' : 'rgba(255,255,255,0.3)',
+              }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}
+              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <item.icon className="h-5 w-5" />
+              {item.id === 'main' && runningTasks > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+              )}
             </button>
-          ))}
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleSidebar}
-          className="relative text-xs gap-1.5 h-8 border-gray-200"
+          )
+        })}
+
+        <div className="flex-1" />
+
+        {/* Settings */}
+        <button
+          onClick={() => { setActiveView('settings'); setActiveConversation(null) }}
+          title="设置"
+          className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200"
+          style={{
+            background: activeView === 'settings' ? 'rgba(99,102,241,0.2)' : 'transparent',
+            color: activeView === 'settings' ? '#818cf8' : 'rgba(255,255,255,0.3)',
+          }}
+          onMouseEnter={e => { if (activeView !== 'settings') (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}
+          onMouseLeave={e => { if (activeView !== 'settings') (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
         >
-          <PanelRight className="h-3.5 w-3.5" />
-          控制台
+          <Settings className="h-5 w-5" />
+        </button>
+
+        {/* Console toggle */}
+        <button
+          onClick={toggleSidebar}
+          title="控制台"
+          className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative mt-1"
+          style={{ color: 'rgba(255,255,255,0.3)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.7)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.3)' }}
+        >
+          <PanelRight className="h-5 w-5" />
           {runningTasks > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-400 text-[8px] flex items-center justify-center text-white font-bold animate-pulse">
               {runningTasks}
             </span>
           )}
-        </Button>
-      </header>
+        </button>
+      </nav>
 
-      {/* Main content with sidebar */}
+      {/* ── Contact sidebar ── */}
+      <ContactSidebar
+        activeConversationId={activeConversationId}
+        onSelectConversation={handleSelectConversation}
+        onSelectGroup={handleSelectGroup}
+      />
+
+      {/* ── Main content ── */}
       <main className="flex-1 overflow-hidden">
-        <div className="flex h-full">
-          {/* Contact sidebar */}
-          {showContactSidebar && (
-            <ContactSidebar
-              activeConversationId={activeConversationId}
-              onSelectConversation={handleSelectConversation}
-              onSelectGroup={handleSelectGroup}
-            />
-          )}
-          
-          {/* Content area */}
-          <div className="flex-1 bg-white overflow-hidden">
-            {activeView === 'main' && <MainView />}
-            {activeView === 'feature' && <FeatureView />}
-            {activeView === 'outer' && <OuterDialog />}
-            {activeView === 'settings' && <SettingsView />}
-          </div>
-        </div>
+        {renderContent()}
       </main>
 
       <EngineerSidebar />
     </div>
   )
 }
+

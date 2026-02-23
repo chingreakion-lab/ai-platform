@@ -108,33 +108,33 @@ function MarkdownContent({ content, isUser }: { content: string; isUser?: boolea
           const code = String(children).replace(/\n$/, '')
           if (match) return <RunnableCodeBlock language={match[1]} code={code} />
           return (
-            <code className={`px-1.5 py-0.5 rounded text-[0.85em] font-mono ${isUser ? 'bg-blue-400/30 text-blue-50' : 'bg-gray-100 text-rose-600'}`}>
+            <code className={`px-1.5 py-0.5 rounded text-[0.85em] font-mono ${isUser ? 'bg-blue-400/30 text-blue-50' : 'bg-[#2a1a2e] text-rose-400'}`}>
               {children}
             </code>
           )
         },
         p({ children }) { return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p> },
-        h1({ children }) { return <h1 className="text-base font-bold mb-2 mt-3 first:mt-0 pb-1 border-b border-gray-200">{children}</h1> },
+        h1({ children }) { return <h1 className="text-base font-bold mb-2 mt-3 first:mt-0 pb-1 border-b border-white/10">{children}</h1> },
         h2({ children }) { return <h2 className="text-sm font-bold mb-2 mt-3 first:mt-0">{children}</h2> },
         h3({ children }) { return <h3 className="text-sm font-semibold mb-1.5 mt-2 first:mt-0">{children}</h3> },
         ul({ children }) { return <ul className="list-disc pl-5 space-y-0.5 mb-2">{children}</ul> },
         ol({ children }) { return <ol className="list-decimal pl-5 space-y-0.5 mb-2">{children}</ol> },
         li({ children }) { return <li className="leading-relaxed">{children}</li> },
         blockquote({ children }) {
-          return <blockquote className={`border-l-4 pl-3 my-2 italic ${isUser ? 'border-blue-300/50 text-blue-100/80' : 'border-gray-300 text-gray-500'}`}>{children}</blockquote>
+          return <blockquote className={`border-l-4 pl-3 my-2 italic ${isUser ? 'border-blue-300/50 text-blue-100/80' : 'border-gray-300 text-white/40'}`}>{children}</blockquote>
         },
         table({ children }) {
-          return <div className="overflow-x-auto my-2 rounded-lg border border-gray-200"><table className="min-w-full text-xs border-collapse">{children}</table></div>
+          return <div className="overflow-x-auto my-2 rounded-lg border border-white/10"><table className="min-w-full text-xs border-collapse">{children}</table></div>
         },
-        thead({ children }) { return <thead className="bg-gray-50">{children}</thead> },
-        th({ children }) { return <th className="border-b border-gray-200 px-3 py-1.5 text-left font-semibold text-gray-700">{children}</th> },
-        td({ children }) { return <td className="border-b border-gray-100 px-3 py-1.5">{children}</td> },
+        thead({ children }) { return <thead className="bg-[#0e0f1a]/5">{children}</thead> },
+        th({ children }) { return <th className="border-b border-white/10 px-3 py-1.5 text-left font-semibold text-white/75">{children}</th> },
+        td({ children }) { return <td className="border-b border-white/[0.06] px-3 py-1.5">{children}</td> },
         a({ href, children }) {
           return <a href={href} target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${isUser ? 'text-blue-100' : 'text-blue-500 hover:text-blue-700'}`}>{children}</a>
         },
         strong({ children }) { return <strong className="font-semibold">{children}</strong> },
         em({ children }) { return <em className="italic">{children}</em> },
-        hr() { return <hr className={`my-3 ${isUser ? 'border-blue-400/30' : 'border-gray-200'}`} /> },
+        hr() { return <hr className={`my-3 ${isUser ? 'border-blue-400/30' : 'border-white/10'}`} /> },
       }}
     >
       {content}
@@ -190,14 +190,14 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
   }
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: '#0b0c14' }}>
       <ScrollArea className="flex-1 min-h-0">
         <div className="py-4 px-4 space-y-1 max-w-3xl mx-auto">
           {messages.length === 0 && (
-            <div className="text-center text-gray-400 py-20 select-none">
-              <div className="text-5xl mb-3 opacity-40">💬</div>
-              <p className="text-sm font-medium text-gray-400">暂无消息</p>
-              <p className="text-xs text-gray-300 mt-1">发送消息开始对话</p>
+            <div className="text-center py-20 select-none" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              <div className="text-5xl mb-3 opacity-30">💬</div>
+              <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.25)' }}>暂无消息</p>
+              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.15)' }}>发送消息开始对话</p>
             </div>
           )}
 
@@ -210,14 +210,14 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
             if (isSystem) {
               return (
                 <div key={msg.id} className="flex items-center gap-2 py-0.5 px-2">
-                  <div className="flex-1 h-px bg-gray-100" />
-                  <div className="flex items-center gap-1.5 text-[11px] text-gray-400 shrink-0 max-w-[75%]">
-                    <span className="font-medium text-gray-500 shrink-0">{msg.senderName}</span>
-                    <span className="text-gray-200">·</span>
+                  <div className="flex-1 h-px bg-[#1a1b2e]" />
+                  <div className="flex items-center gap-1.5 text-[11px] text-white/30 shrink-0 max-w-[75%]">
+                    <span className="font-medium text-white/40 shrink-0">{msg.senderName}</span>
+                    <span className="text-white/15">·</span>
                     <span className="truncate font-mono">{msg.content}</span>
-                    <span className="text-gray-300 shrink-0 tabular-nums">{format(msg.timestamp, 'HH:mm')}</span>
+                    <span className="text-white/20 shrink-0 tabular-nums">{format(msg.timestamp, 'HH:mm')}</span>
                   </div>
-                  <div className="flex-1 h-px bg-gray-100" />
+                  <div className="flex-1 h-px bg-[#1a1b2e]" />
                 </div>
               )
             }
@@ -233,14 +233,14 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
                   </AvatarFallback>
                 </Avatar>
                 <div className={`max-w-[78%] flex flex-col gap-0.5 ${isUser ? 'items-end' : 'items-start'}`}>
-                  <div className={`flex items-center gap-1.5 text-[11px] text-gray-400 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
+                  <div className={`flex items-center gap-1.5 text-[11px] text-white/30 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
                     <span className="font-medium">{msg.senderName}</span>
                     <span className="tabular-nums">{format(msg.timestamp, 'HH:mm')}</span>
                   </div>
                   <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
                     isUser
                       ? 'bg-blue-500 text-white rounded-tr-sm'
-                      : 'bg-gray-50 text-gray-800 rounded-tl-sm border border-gray-100'
+                      : 'bg-[#1a1b2e] text-white/85 rounded-tl-sm border border-white/[0.07]'
                   }`}>
                     {isUser ? (
                       <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
@@ -263,11 +263,11 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
           {(loading || isLoading) && !streamingMessageId && (
             <div className="flex gap-2.5">
               <Avatar className="h-7 w-7 shrink-0 mt-1.5 ring-2 ring-white shadow-sm">
-                <AvatarFallback className="bg-gray-100">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+                <AvatarFallback className="bg-[#1a1b2e]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-white/30" />
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5 shadow-sm">
+              <div className="bg-[#1a1b2e] border border-white/[0.07] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -279,21 +279,21 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
       </ScrollArea>
 
       {files.length > 0 && (
-        <div className="px-4 py-2 flex gap-2 flex-wrap border-t bg-gray-50">
+        <div className="px-4 py-2 flex gap-2 flex-wrap" style={{ background: '#080910', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           {files.map((f, i) => (
-            <div key={i} className="flex items-center gap-1.5 bg-white border rounded-full px-2.5 py-1 text-xs shadow-sm text-gray-600">
-              <Paperclip className="h-3 w-3 text-gray-400" />
+            <div key={i} className="flex items-center gap-1.5 bg-[#0e0f1a] border rounded-full px-2.5 py-1 text-xs shadow-sm text-white/60">
+              <Paperclip className="h-3 w-3 text-white/30" />
               <span className="max-w-[160px] truncate">{f.name}</span>
-              <button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5 text-base leading-none">×</button>
+              <button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-white/20 hover:text-red-400 transition-colors ml-0.5 text-base leading-none">×</button>
             </div>
           ))}
         </div>
       )}
 
-      <div className="border-t bg-white p-3">
+      <div className="p-3" style={{ background: '#0e0f1a', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex gap-2 items-end max-w-3xl mx-auto">
           <input ref={fileRef} type="file" multiple className="hidden" onChange={e => setFiles([...files, ...Array.from(e.target.files || [])])} />
-          <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9 text-gray-400 hover:text-gray-600 rounded-xl" onClick={() => fileRef.current?.click()} title="上传文件">
+          <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9 text-white/30 hover:text-white/60 rounded-xl" onClick={() => fileRef.current?.click()} title="上传文件">
             <Paperclip className="h-4 w-4" />
           </Button>
           <Textarea
@@ -304,7 +304,7 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
             onCompositionEnd={e => { composingRef.current = false; setInput((e.target as HTMLTextAreaElement).value) }}
             onKeyDown={handleKeyDown}
             placeholder={placeholder ?? '发送消息... (Enter 发送，Shift+Enter 换行)'}
-            className="min-h-[40px] max-h-[160px] resize-none rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:border-blue-300 transition-colors text-sm"
+            className="min-h-[40px] max-h-[160px] resize-none rounded-xl border-white/10 bg-[#13131e] focus:border-indigo-400/50 transition-colors text-sm text-white/85"
             rows={1}
           />
           <Button size="icon" className="shrink-0 h-9 w-9 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-40 transition-all" onClick={handleSubmit}

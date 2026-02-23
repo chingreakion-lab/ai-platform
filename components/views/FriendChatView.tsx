@@ -288,9 +288,9 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-[#0e0f1a]">
       {/* Header */}
-      <header className="border-b bg-white px-4 py-3 flex items-center justify-between shrink-0">
+      <header className="border-b bg-[#0e0f1a] px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           {onBack && (
             <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8">
@@ -319,7 +319,7 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
               </div>
             ) : (
               <div className="flex items-center gap-2 group">
-                <h2 className="font-semibold text-sm text-gray-800">{conversation.name}</h2>
+                <h2 className="font-semibold text-sm text-white/85">{conversation.name}</h2>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -330,7 +330,7 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
                 </Button>
               </div>
             )}
-            <p className="text-xs text-gray-500">{friend.description}</p>
+            <p className="text-xs text-white/40">{friend.description}</p>
           </div>
         </div>
       </header>

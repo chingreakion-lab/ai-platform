@@ -68,14 +68,14 @@ export function SettingsView() {
   }
 
   return (
-    <div className="h-full overflow-auto bg-gray-50">
+    <div className="h-full overflow-auto bg-[#13131e]">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         {/* AI Friends */}
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-[#0e0f1a] rounded-xl border overflow-hidden">
           <div className="px-6 py-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">AI 好友</h2>
+              <h2 className="text-sm font-semibold text-white/85">AI 好友</h2>
               <Badge variant="secondary" className="text-xs">{friends.length}</Badge>
             </div>
             <Button size="sm" className="h-8 text-xs gap-1" onClick={() => { setForm({...defaultForm}); setEditId(null); setShowAdd(true) }}>
@@ -84,27 +84,27 @@ export function SettingsView() {
           </div>
           <div className="divide-y">
             {friends.map(f => (
-              <div key={f.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50">
+              <div key={f.id} className="px-6 py-4 flex items-center gap-4 hover:bg-[#13131e]">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
                   style={{ backgroundColor: f.avatar }}>
                   {f.name[0]}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-800">{f.name}</span>
+                    <span className="text-sm font-semibold text-white/85">{f.name}</span>
                     <Badge variant={f.role === 'chief' ? 'default' : 'secondary'} className="text-[10px]">
                       {f.role === 'chief' ? '主工程师' : '功能工程师'}
                     </Badge>
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">{providerConfig[f.provider]?.label} · {f.model}</p>
-                  {f.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{f.description}</p>}
+                  <p className="text-xs text-white/30 mt-0.5">{providerConfig[f.provider]?.label} · {f.model}</p>
+                  {f.description && <p className="text-xs text-white/40 mt-0.5 truncate">{f.description}</p>}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-blue-500"
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/30 hover:text-blue-500"
                     onClick={() => handleEdit(f)}>
                     <Edit2 className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-red-500"
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/30 hover:text-red-500"
                     onClick={() => removeFriend(f.id)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -115,36 +115,36 @@ export function SettingsView() {
         </div>
 
         {/* R2 Storage Status */}
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-[#0e0f1a] rounded-xl border overflow-hidden">
           <div className="px-6 py-4 border-b flex items-center gap-2">
             <Database className="h-5 w-5 text-green-500" />
-            <h2 className="text-sm font-semibold text-gray-800">存储配置 (Cloudflare R2)</h2>
+            <h2 className="text-sm font-semibold text-white/85">存储配置 (Cloudflare R2)</h2>
           </div>
           <div className="px-6 py-4 space-y-3">
-            <p className="text-xs text-gray-500">文件上传至 Cloudflare R2，需通过服务器环境变量配置：<code className="bg-gray-100 px-1 rounded text-[11px]">R2_ENDPOINT</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_ACCESS_KEY_ID</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_SECRET_ACCESS_KEY</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_BUCKET</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_PUBLIC_URL</code>。</p>
-            <p className="text-xs text-gray-400">配置完成后附件上传功能自动可用，未配置则上传会报错。</p>
+            <p className="text-xs text-white/40">文件上传至 Cloudflare R2，需通过服务器环境变量配置：<code className="bg-[#1a1b2e] px-1 rounded text-[11px]">R2_ENDPOINT</code>、<code className="bg-[#1a1b2e] px-1 rounded text-[11px]">R2_ACCESS_KEY_ID</code>、<code className="bg-[#1a1b2e] px-1 rounded text-[11px]">R2_SECRET_ACCESS_KEY</code>、<code className="bg-[#1a1b2e] px-1 rounded text-[11px]">R2_BUCKET</code>、<code className="bg-[#1a1b2e] px-1 rounded text-[11px]">R2_PUBLIC_URL</code>。</p>
+            <p className="text-xs text-white/30">配置完成后附件上传功能自动可用，未配置则上传会报错。</p>
           </div>
         </div>
 
         {/* Workspace Status */}
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-[#0e0f1a] rounded-xl border overflow-hidden">
           <div className="px-6 py-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Database className="h-5 w-5 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">代码执行工作区 (Docker)</h2>
+              <h2 className="text-sm font-semibold text-white/85">代码执行工作区 (Docker)</h2>
             </div>
-            <button onClick={fetchWorkspaceStatus} disabled={wsLoading} className="text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50">
+            <button onClick={fetchWorkspaceStatus} disabled={wsLoading} className="text-white/30 hover:text-blue-500 transition-colors disabled:opacity-50">
               <RefreshCw className={`h-4 w-4 ${wsLoading ? 'animate-spin' : ''}`} />
             </button>
           </div>
           <div className="px-6 py-4">
             {workspaceStatus === null ? (
-              <div className="flex items-center gap-2 text-xs text-gray-400"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> 检测中...</div>
+              <div className="flex items-center gap-2 text-xs text-white/30"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> 检测中...</div>
             ) : workspaceStatus.running ? (
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <span className="text-xs text-green-700 font-medium">容器运行中</span>
-                <span className="text-xs text-gray-400">· {workspaceStatus.containerName}</span>
+                <span className="text-xs text-white/30">· {workspaceStatus.containerName}</span>
               </div>
             ) : (
               <div className="space-y-2">
@@ -152,61 +152,61 @@ export function SettingsView() {
                   <AlertCircle className="h-4 w-4 text-orange-400" />
                   <span className="text-xs text-orange-600 font-medium">容器未运行 — Agent 执行时自动启动，首次启动约 10–30 秒</span>
                 </div>
-                {workspaceStatus.error && <p className="text-xs text-gray-400 font-mono bg-gray-50 rounded p-2">{workspaceStatus.error}</p>}
+                {workspaceStatus.error && <p className="text-xs text-white/30 font-mono bg-[#13131e] rounded p-2">{workspaceStatus.error}</p>}
               </div>
             )}
           </div>
         </div>
 
         {/* Permission Model */}
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-[#0e0f1a] rounded-xl border overflow-hidden">
           <div className="px-6 py-4 border-b flex items-center gap-2">
             <Shield className="h-5 w-5 text-purple-500" />
-            <h2 className="text-sm font-semibold text-gray-800">权限模型</h2>
+            <h2 className="text-sm font-semibold text-white/85">权限模型</h2>
           </div>
-          <div className="px-6 py-4 space-y-3 text-xs text-gray-600">
+          <div className="px-6 py-4 space-y-3 text-xs text-white/60">
             <div className="flex items-start gap-3 p-3 bg-indigo-50 rounded-lg">
               <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-xs shrink-0">主</div>
               <div>
-                <p className="font-semibold text-gray-800">主工程师</p>
-                <p className="text-gray-500 mt-0.5">可修改平台整体配置、管理群与功能板块绑定关系。不可修改功能板块内部实现。</p>
+                <p className="font-semibold text-white/85">主工程师</p>
+                <p className="text-white/40 mt-0.5">可修改平台整体配置、管理群与功能板块绑定关系。不可修改功能板块内部实现。</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 bg-emerald-50 rounded-lg">
               <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shrink-0">功</div>
               <div>
-                <p className="font-semibold text-gray-800">功能群工程师</p>
-                <p className="text-gray-500 mt-0.5">只能修改自己负责的功能板块，不可修改其他板块或整体平台配置。</p>
+                <p className="font-semibold text-white/85">功能群工程师</p>
+                <p className="text-white/40 mt-0.5">只能修改自己负责的功能板块，不可修改其他板块或整体平台配置。</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Supervisor */}
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-[#0e0f1a] rounded-xl border overflow-hidden">
           <div className="px-6 py-4 border-b flex items-center gap-2">
             <Eye className="h-5 w-5 text-orange-500" />
-            <h2 className="text-sm font-semibold text-gray-800">监工机制</h2>
+            <h2 className="text-sm font-semibold text-white/85">监工机制</h2>
           </div>
-          <div className="px-6 py-4 space-y-3 text-xs text-gray-600">
+          <div className="px-6 py-4 space-y-3 text-xs text-white/60">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-orange-400" />
               <span>Playwright 截图 + Gemini Vision 视觉验收</span>
             </div>
-            <p className="text-gray-400">监工会自动截取页面截图，使用 Gemini Vision 分析是否符合验收标准。不合格结果将被打回重新执行。</p>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-gray-500">API 端点: <span className="font-mono">POST /api/supervisor</span></p>
-              <p className="text-gray-500 mt-1">参数: <span className="font-mono">url, criteria</span></p>
+            <p className="text-white/30">监工会自动截取页面截图，使用 Gemini Vision 分析是否符合验收标准。不合格结果将被打回重新执行。</p>
+            <div className="bg-[#13131e] rounded-lg p-3">
+              <p className="text-white/40">API 端点: <span className="font-mono">POST /api/supervisor</span></p>
+              <p className="text-white/40 mt-1">参数: <span className="font-mono">url, criteria</span></p>
             </div>
           </div>
         </div>
 
         {/* Memory Management */}
         {friends.some(f => getMemoriesByFriend(f.id).length > 0) && (
-          <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="bg-[#0e0f1a] rounded-xl border overflow-hidden">
             <div className="px-6 py-4 border-b flex items-center gap-2">
               <Database className="h-4 w-4 text-purple-500" />
-              <h2 className="text-sm font-semibold text-gray-800">记忆管理</h2>
+              <h2 className="text-sm font-semibold text-white/85">记忆管理</h2>
             </div>
             <div className="divide-y">
               {friends.map(f => {
@@ -218,7 +218,7 @@ export function SettingsView() {
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                           style={{ backgroundColor: f.avatar }}>{f.name.charAt(0)}</div>
-                        <span className="text-sm font-medium text-gray-700">{f.name}</span>
+                        <span className="text-sm font-medium text-white/75">{f.name}</span>
                         <Badge variant="secondary" className="text-[10px]">{mems.length} 条记忆</Badge>
                       </div>
                       <Button
@@ -236,17 +236,17 @@ export function SettingsView() {
                     </div>
                     <div className="space-y-1">
                       {mems.map(m => (
-                        <div key={m.id} className="flex items-start justify-between gap-2 py-1.5 px-2 rounded hover:bg-gray-50 group">
+                        <div key={m.id} className="flex items-start justify-between gap-2 py-1.5 px-2 rounded hover:bg-[#13131e] group">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-700 truncate">{m.summary}</p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">
+                            <p className="text-xs text-white/75 truncate">{m.summary}</p>
+                            <p className="text-[10px] text-white/30 mt-0.5">
                               {new Date(m.createdAt).toLocaleDateString('zh-CN')}
                               {m.tags.length > 0 && ` · ${m.tags.slice(0, 3).join(', ')}`}
                             </p>
                           </div>
                           <button
                             onClick={() => deleteMemory(m.id)}
-                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all shrink-0 text-xs mt-0.5"
+                            className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 transition-all shrink-0 text-xs mt-0.5"
                           >✕</button>
                         </div>
                       ))}
@@ -268,11 +268,11 @@ export function SettingsView() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-700 block mb-1">名称 *</label>
+                <label className="text-xs font-medium text-white/75 block mb-1">名称 *</label>
                 <Input value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="好友名称" className="h-8 text-sm" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700 block mb-1">角色</label>
+                <label className="text-xs font-medium text-white/75 block mb-1">角色</label>
                 <Select value={form.role} onValueChange={v => setForm(p => ({...p, role: v as 'chief'|'feature'}))}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -283,7 +283,7 @@ export function SettingsView() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">提供商 *</label>
+              <label className="text-xs font-medium text-white/75 block mb-1">提供商 *</label>
               <Select value={form.provider} onValueChange={v => handleProviderChange(v as AIProvider)}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -294,7 +294,7 @@ export function SettingsView() {
               </Select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">模型</label>
+              <label className="text-xs font-medium text-white/75 block mb-1">模型</label>
               <Select value={form.model} onValueChange={v => setForm(p => ({...p, model: v}))}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -305,17 +305,17 @@ export function SettingsView() {
               </Select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">API Key *</label>
+              <label className="text-xs font-medium text-white/75 block mb-1">API Key *</label>
               <Input value={form.apiKey} onChange={e => setForm(p => ({...p, apiKey: e.target.value}))}
                 placeholder="输入 API Key" type="password" className="h-8 text-sm" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">描述</label>
+              <label className="text-xs font-medium text-white/75 block mb-1">描述</label>
               <Input value={form.description} onChange={e => setForm(p => ({...p, description: e.target.value}))}
                 placeholder="角色描述" className="h-8 text-sm" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">头像颜色</label>
+              <label className="text-xs font-medium text-white/75 block mb-1">头像颜色</label>
               <div className="flex gap-2">
                 {avatarColors.map(c => (
                   <button key={c} onClick={() => setForm(p => ({...p, avatar: c}))}
