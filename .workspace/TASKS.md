@@ -106,7 +106,7 @@ Commit：c6e2f3e
 ### [x] TASK-1 持久化共享工作区
 优先级：P0（最优先）
 完成时间：2026-02-23
-Commit：64655d4
+Commit：68654f4 (fix: 多语言支持修复)
 
 目标：
 一个长期运行的 Docker 容器，所有 AI 共享同一个文件系统。
@@ -115,15 +115,28 @@ Grok 写的文件 Gemini 能直接读到，装过的包不用重装。
 完成情况：✅
 
 实现完成：
-1. ✅ `/app/api/workspace/route.ts` - 容器启动/停止/执行 API
+1. ✅ `/app/api/workspace/route.ts` - 容器启动/停止/状态查询 API
 2. ✅ `/app/api/agent/route.ts` - 改用 docker exec 在持久容器执行
-3. ✅ `/app/api/execute/route.ts` - 同步改为持久化工作区
+3. ✅ `/app/api/execute/route.ts` - **混合方案**：Python→持久容器，其他语言→独立容器
 
-测试结果：
-- ✅ TypeScript 编译通过（npm run build 成功）
-- ✅ Docker 容器创建/执行命令语法验证通过
-- ✅ 文件操作 (write/read) 逻辑可行
-- 命令行验证：docker exec 系列命令已测试
+测试方法：
+- 启动开发服务器：npm run dev --port 3100
+- 测试 workspace API：curl /api/workspace?action=status
+- 测试多语言执行：POST /api/execute with code & language
+
+真实测试结果（2026-02-23 11:05）：
+- ✅ npm run build 成功（Turbopack 编译通过）
+- ✅ 开发服务器启动正常（port 3100 listening）
+- ✅ /api/workspace/status 返回 {"running":true,"containerName":"ai-platform-workspace"}
+- ✅ JavaScript 执行成功：console.log 输出正确（用独立 node:20-alpine 容器）
+- ✅ Python 执行成功：文件写入 /workspace/python_test.txt
+- ✅ Python 执行成功：文件读取，内容为"持久化测试"（验证了持久化）
+- ✅ 多次执行列出了之前写的文件（persistent_test.txt, test_code.py）
+
+已知问题修复：
+- ❌ 原始问题：execute/route.ts 改成全部语言用 python:3.11-slim 容器，会导致 JS/TS/Ruby/Go 失败
+- ✅ 修复方案：usePersistentWorkspace 标记，Python true，其他语言 false（各用各自容器）
+- ✅ 测试验证：JavaScript 成功执行，Python 成功持久化
 
 ---
 
