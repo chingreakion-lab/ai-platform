@@ -141,9 +141,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
   conversations: [],
   roleCards: DEFAULT_ROLE_CARDS.map(card => ({
     ...card,
-    id: uuidv4(),
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    id: card.name,
+    createdAt: 0,
+    updatedAt: 0,
   })),
   memories: [],
   featureBoards: [],
@@ -165,7 +165,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         friends: saved.friends?.length ? saved.friends : defaultFriends,
         groups: saved.groups || [],
         conversations: saved.conversations || [],
-        roleCards: saved.roleCards || get().roleCards, // Use existing built-in cards if not saved
+        roleCards: DEFAULT_ROLE_CARDS.map(card => ({ ...card, id: card.name, createdAt: 0, updatedAt: 0 })), // Always use latest built-in role cards
         memories: saved.memories || [],
         featureBoards: saved.featureBoards || [],
         tasks: saved.tasks || [],
