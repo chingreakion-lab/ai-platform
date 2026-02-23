@@ -237,14 +237,34 @@ addConversationMessage(convId, message): void
 
 ### [~] TASK-3 角色卡牌系统
 优先级：P1
-预计工作量：3-4小时
 开始时间：2026-02-23
+**暂停时间**：2026-02-23 11:30
 
-进度：正在实现 3-A（新增 RoleCard 类型和内置卡牌）
-- TASK-3-A ⏳ 进行中：修改 /lib/types.ts - 添加 RoleCard 接口和内置卡牌库
-- TASK-3-B ⏳ 待开始：编辑 /lib/store.ts - 添加 roleCards CRUD 方法
-- TASK-3-C ⏳ 待开始：改造群组设置 UI - 每个成员可分配角色卡牌
-- TASK-3-D ⏳ 待开始：修改 Agent 调用 - 注入角色卡牌的 system prompt
+进度：已完成 TASK-3-A 和 3-B，TASK-3-C 部分实现后暂停
+
+**已完成：**
+- ✅ TASK-3-A：修改 /lib/types.ts
+  - 添加 RoleCard 接口（id, name, description, systemPrompt, emoji）
+  - 添加内置卡牌库（6个：首席工程师、前端、后端、测试、数据分析、代码审查）
+  - Commit：4444ba2
+
+- ✅ TASK-3-B：编辑 /lib/store.ts
+  - 添加 roleCards state + localStorage 持久化
+  - 添加 CRUD 方法：addRoleCard, deleteRoleCard, updateRoleCard, getRoleCard
+  - Commit：4444ba2
+
+**进行中（暂停）：**
+- ⏳ TASK-3-C：改造群组设置 UI - 角色分配界面
+  - 开始修改 components/views/MainView.tsx
+  - 添加 showMemberSettings 状态
+  - 添加 memberRoles 映射 (friendId -> roleCardId)
+  - 添加 handleOpenMemberSettings 和 handleSaveMemberRoles 函数
+  - **暂停点**：还需要在 UI 中添加"角色设置"按钮和角色选择器对话框
+  - 改动已撤销，保存为工作状态记录
+
+**待开始：**
+- [ ] TASK-3-C 续：完成 MainView 的角色分配 UI（对话框 + 选择器）
+- [ ] TASK-3-D：修改 Agent 调用，注入角色卡牌的 system prompt
 
 目标：
 - 内置角色卡牌库（首席工程师、前端、后端、测试、数据分析、代码审查）
