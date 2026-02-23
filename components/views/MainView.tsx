@@ -26,6 +26,7 @@ export function MainView() {
   const [isLoading, setIsLoading] = useState(false)
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
   const [memberRoles, setMemberRoles] = useState<Record<string, string>>({}) // friendId -> roleCardId
+  const [createRoleMap, setCreateRoleMap] = useState<Record<string, string>>({}) // for create dialog
   const [roleDialogOpen, setRoleDialogOpen] = useState(false)
   const [roleDialogFriendId, setRoleDialogFriendId] = useState<string | null>(null)
 
@@ -35,12 +36,13 @@ export function MainView() {
 
   const handleCreateGroup = () => {
     if (!newGroupName.trim() || selectedMembers.length === 0) return
-    const id = createGroup(newGroupName.trim(), selectedMembers)
+    const id = createGroup(newGroupName.trim(), selectedMembers, createRoleMap)
     addLog({ level: 'success', message: `群组 "${newGroupName}" 创建成功` })
     setSelectedGroupId(id)
     setShowCreateGroup(false)
     setNewGroupName('')
     setSelectedMembers([])
+    setCreateRoleMap({})
   }
 
   const runAgentMember = async (
@@ -302,6 +304,11 @@ export function MainView() {
                 onClick={() => { setAnnouncementText(selectedGroup.announcement); setShowAnnouncement(true) }}>
                 <Megaphone className="h-3 w-3" /> 公告
               </Button>
+              <Button variant="outline" size="sm" className="text-xs h-7 gap-1 border-dashed"
+                onClick={() => { setRoleDialogFriendId(groupMembers[0]?.id || null); setRoleDialogOpen(true) }}
+                title="为成员分配角色卡片">
+                🎭 分配角色
+              </Button>
             </div>
           </div>
 
@@ -404,49 +411,107 @@ export function MainView() {
       )}
 
       {/* Create Group Modal */}
-      <Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showCreateGroup} onOpenChange={(v) => { setShowCreateGroup(v); if (!v) { setSelectedMembers([]); setNewGroupName(''); setCreateRoleMap({}) } }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>创建群组</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">群组名称</label>
               <Input value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
-                placeholder="输入群组名称" />
+                placeholder="输入群组名称" autoFocus />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">选择成员</label>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {friends.map(friend => (
-                  <label key={friend.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer border">
-                    <input type="checkbox"
-                      checked={selectedMembers.includes(friend.id)}
-                      onChange={e => setSelectedMembers(
-                        e.target.checked ? [...selectedMembers, friend.id] : selectedMembers.filter(id => id !== friend.id)
+              <label className="text-sm font-medium text-gray-700 block mb-2">
+                选择成员 <span className="text-gray-400 font-normal text-xs ml-1">— 选中后可为每人分配角色</span>
+              </label>
+              <div className="space-y-3">
+                {friends.map(friend => {
+                  const checked = selectedMembers.includes(friend.id)
+                  const assignedId = createRoleMap[friend.id] || ''
+                  const assignedCard = roleCards.find(c => c.id === assignedId)
+                  return (
+                    <div key={friend.id}
+                      className={`rounded-xl border transition-all ${checked ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white'}`}>
+                      {/* Member row */}
+                      <label className="flex items-center gap-3 p-3 cursor-pointer">
+                        <input type="checkbox" checked={checked}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setSelectedMembers(prev => [...prev, friend.id])
+                            } else {
+                              setSelectedMembers(prev => prev.filter(id => id !== friend.id))
+                              setCreateRoleMap(prev => { const n = { ...prev }; delete n[friend.id]; return n })
+                            }
+                          }}
+                          className="rounded accent-blue-500 w-4 h-4 shrink-0"
+                        />
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                          style={{ backgroundColor: friend.avatar }}>
+                          {friend.name[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800">{friend.name}</p>
+                          <p className="text-xs text-gray-400 truncate">{friend.model}</p>
+                        </div>
+                        <Badge variant={friend.role === 'chief' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                          {friend.role === 'chief' ? '主工程师' : '功能工程师'}
+                        </Badge>
+                      </label>
+
+                      {/* Inline role picker — only when checked */}
+                      {checked && (
+                        <div className="px-3 pb-3">
+                          <p className="text-[11px] text-gray-500 mb-2 font-medium">分配角色（可选）</p>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {/* No role */}
+                            <button
+                              type="button"
+                              onClick={() => setCreateRoleMap(prev => { const n = { ...prev }; delete n[friend.id]; return n })}
+                              className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border text-center transition-all ${
+                                !assignedId
+                                  ? 'border-blue-400 bg-blue-100 ring-1 ring-blue-300'
+                                  : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                              }`}
+                            >
+                              <span className="text-lg">👤</span>
+                              <span className="text-[10px] text-gray-500 leading-tight">默认</span>
+                            </button>
+                            {roleCards.map(card => (
+                              <button
+                                key={card.id}
+                                type="button"
+                                onClick={() => setCreateRoleMap(prev => ({ ...prev, [friend.id]: card.id }))}
+                                className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border text-center transition-all ${
+                                  assignedId === card.id
+                                    ? 'border-blue-400 bg-blue-100 ring-1 ring-blue-300'
+                                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                }`}
+                                title={card.expertArea}
+                              >
+                                <span className="text-lg">{card.emoji}</span>
+                                <span className="text-[10px] text-gray-600 leading-tight truncate w-full text-center">{card.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                          {assignedCard && (
+                            <p className="text-[11px] text-blue-600 mt-1.5 bg-blue-50 rounded px-2 py-1">
+                              {assignedCard.emoji} <strong>{assignedCard.name}</strong> · {assignedCard.expertArea}
+                            </p>
+                          )}
+                        </div>
                       )}
-                      className="rounded"
-                    />
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                      style={{ backgroundColor: friend.avatar }}>
-                      {friend.name[0]}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{friend.name}</p>
-                      <p className="text-xs text-gray-400">{friend.model}</p>
-                    </div>
-                    <Badge variant={friend.role === 'chief' ? 'default' : 'secondary'} className="text-[10px]">
-                      {friend.role === 'chief' ? '主工程师' : '功能工程师'}
-                    </Badge>
-                  </label>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateGroup(false)}>取消</Button>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => { setShowCreateGroup(false); setSelectedMembers([]); setNewGroupName(''); setCreateRoleMap({}) }}>取消</Button>
             <Button onClick={handleCreateGroup} disabled={!newGroupName.trim() || selectedMembers.length === 0}>
-              创建
+              创建群组
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -473,28 +538,59 @@ export function MainView() {
 
       {/* Role Assignment Dialog */}
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              为 {friends.find(f => f.id === roleDialogFriendId)?.name} 分配角色
-            </DialogTitle>
+            <DialogTitle>🎭 分配角色</DialogTitle>
+            <p className="text-xs text-gray-400 mt-0.5">为每位成员选择专属角色，角色将影响 AI 的回复风格与专注方向</p>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-2 py-2">
-            {/* No role option */}
+
+          {/* Member tab selector */}
+          {groupMembers.length > 1 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {groupMembers.map(m => {
+                const memberInGroup = selectedGroup?.members.find(gm => gm.friendId === m.id)
+                const roleCard = memberInGroup?.roleCardId ? roleCards.find(r => r.id === memberInGroup.roleCardId) : null
+                const isActive = roleDialogFriendId === m.id
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => setRoleDialogFriendId(m.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                      isActive
+                        ? 'border-blue-400 bg-blue-100 text-blue-700'
+                        : 'border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: m.avatar }} />
+                    {m.name}
+                    {roleCard && <span className="text-sm">{roleCard.emoji}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Role grid for active member */}
+          <div className="grid grid-cols-2 gap-2 py-1">
             <button
               onClick={() => {
                 if (selectedGroup && roleDialogFriendId) {
                   updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, '')
                 }
+                const currentRoleId = selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
+                if (currentRoleId) return // don't auto-close — let user continue assigning others
                 setRoleDialogOpen(false)
               }}
-              className="flex flex-col items-center gap-1 p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-colors ${
+                !selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+              }`}
             >
               <span className="text-2xl">👤</span>
               <span className="text-xs font-medium text-gray-600">无角色</span>
               <span className="text-[10px] text-gray-400 text-center">使用默认行为</span>
             </button>
-            {/* Role cards */}
             {roleCards.map(card => {
               const currentRoleId = selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
               const isSelected = currentRoleId === card.id
@@ -505,11 +601,10 @@ export function MainView() {
                     if (selectedGroup && roleDialogFriendId) {
                       updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, card.id)
                     }
-                    setRoleDialogOpen(false)
                   }}
                   className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-colors ${
                     isSelected
-                      ? 'border-blue-500 bg-blue-50'
+                      ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-300'
                       : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
                   }`}
                 >
@@ -520,6 +615,9 @@ export function MainView() {
               )
             })}
           </div>
+          <DialogFooter>
+            <Button size="sm" onClick={() => setRoleDialogOpen(false)}>完成</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

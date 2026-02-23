@@ -112,7 +112,7 @@ interface AppState {
   getMemoriesByFriend: (friendId: string) => Memory[]
   searchMemories: (friendId: string, query: string) => Memory[]
 
-  createGroup: (name: string, memberIds: string[]) => string
+  createGroup: (name: string, memberIds: string[], roleMap?: Record<string, string>) => string
   updateGroup: (id: string, updates: Partial<Group>) => void
   deleteGroup: (id: string) => void
   addMessage: (groupId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
@@ -261,13 +261,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
     return get().conversations.filter(c => c.friendId === friendId)
   },
 
-  createGroup: (name, memberIds) => {
+  createGroup: (name, memberIds, roleMap = {}) => {
     const id = uuidv4()
     set((state) => {
       const next = {
         ...state,
         groups: [...state.groups, {
-          id, name, members: memberIds.map(friendId => ({ friendId, roleCardId: '' })), // convert string[] to GroupMember[]
+          id, name,
+          members: memberIds.map(friendId => ({ friendId, roleCardId: roleMap[friendId] || '' })),
           announcement: '', announcementFiles: [],
           messages: [], boundBoardIds: [],
           createdAt: Date.now()
