@@ -1,6 +1,6 @@
 'use client'
 import { create } from 'zustand'
-import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, Attachment, BoardStatus, BoardHistory, Conversation, GroupMember, RoleCard, DEFAULT_ROLE_CARDS } from './types'
+import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, Attachment, BoardStatus, BoardHistory, Conversation, GroupMember, RoleCard, DEFAULT_ROLE_CARDS, Memory } from './types'
 import { v4 as uuidv4 } from 'uuid'
 
 // API keys loaded from .env.local (NEXT_PUBLIC_ prefix for client-side access)
@@ -58,6 +58,7 @@ function saveToStorage(state: Partial<AppState>) {
       groups: state.groups,
       conversations: state.conversations,
       roleCards: state.roleCards,
+      memories: state.memories,
       featureBoards: state.featureBoards,
       tasks: state.tasks,
       logs: state.logs,
@@ -72,6 +73,7 @@ interface AppState {
   groups: Group[]
   conversations: Conversation[] // new: friend conversations
   roleCards: RoleCard[] // new: custom and built-in role cards
+  memories: Memory[] // new: per-friend persistent memories
   featureBoards: FeatureBoard[]
   tasks: Task[]
   logs: LogEntry[]
@@ -101,7 +103,14 @@ interface AppState {
   updateRoleCard: (id: string, updates: Partial<Omit<RoleCard, 'id' | 'createdAt' | 'updatedAt'>>) => void
   deleteRoleCard: (id: string) => void
   getRoleCard: (id: string) => RoleCard | undefined
-  
+  updateGroupMemberRole: (groupId: string, friendId: string, roleCardId: string) => void
+
+  // Memory methods (new)
+  addMemory: (memory: Omit<Memory, 'id' | 'createdAt'>) => string
+  deleteMemory: (id: string) => void
+  getMemoriesByFriend: (friendId: string) => Memory[]
+  searchMemories: (friendId: string, query: string) => Memory[]
+
   createGroup: (name: string, memberIds: string[]) => string
   updateGroup: (id: string, updates: Partial<Group>) => void
   deleteGroup: (id: string) => void
@@ -134,6 +143,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     createdAt: Date.now(),
     updatedAt: Date.now(),
   })),
+  memories: [],
   featureBoards: [],
   tasks: [],
   logs: [],
@@ -154,6 +164,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         groups: saved.groups || [],
         conversations: saved.conversations || [],
         roleCards: saved.roleCards || get().roleCards, // Use existing built-in cards if not saved
+        memories: saved.memories || [],
         featureBoards: saved.featureBoards || [],
         tasks: saved.tasks || [],
         logs: saved.logs || [],
@@ -414,5 +425,53 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   getRoleCard: (id) => {
     return get().roleCards.find(c => c.id === id)
+  },
+
+  updateGroupMemberRole: (groupId, friendId, roleCardId) => set((state) => {
+    const next = {
+      ...state,
+      groups: state.groups.map(g => g.id === groupId ? {
+        ...g,
+        members: g.members.map(m => m.friendId === friendId ? { ...m, roleCardId } : m)
+      } : g)
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  // Memory methods
+  addMemory: (memory) => {
+    const id = uuidv4()
+    set((state) => {
+      const next = {
+        ...state,
+        memories: [...state.memories, { ...memory, id, createdAt: Date.now() }],
+      }
+      saveToStorage(next)
+      return next
+    })
+    return id
+  },
+
+  deleteMemory: (id) => set((state) => {
+    const next = { ...state, memories: state.memories.filter(m => m.id !== id) }
+    saveToStorage(next)
+    return next
+  }),
+
+  getMemoriesByFriend: (friendId) => {
+    return get().memories.filter(m => m.friendId === friendId)
+  },
+
+  searchMemories: (friendId, query) => {
+    const keywords = query.toLowerCase().split(/[\s，,、]+/).filter(Boolean)
+    return get().memories
+      .filter(m => m.friendId === friendId)
+      .filter(m => {
+        const text = `${m.content} ${m.summary} ${m.tags.join(' ')}`.toLowerCase()
+        return keywords.some(kw => text.includes(kw))
+      })
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 5)
   },
 }))

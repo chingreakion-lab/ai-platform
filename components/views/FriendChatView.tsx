@@ -5,9 +5,8 @@ import { ChatArea } from '@/components/chat/ChatArea'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Edit, Send, ChevronLeft } from 'lucide-react'
+import { Edit, ChevronLeft } from 'lucide-react'
 import { Conversation, AIFriend } from '@/lib/types'
-import { v4 as uuidv4 } from 'uuid'
 
 interface FriendChatViewProps {
   conversation: Conversation
@@ -15,23 +14,30 @@ interface FriendChatViewProps {
   onBack?: () => void
 }
 
+// Memory trigger keywords
+const REMEMBER_TRIGGERS = ['记住', '记一下', '记住这个', '记录一下']
+const RECALL_TRIGGERS = ['还记得', '你记得', '想起', '之前说过', '我说过']
+const shouldRemember = (text: string) => REMEMBER_TRIGGERS.some(t => text.includes(t))
+const shouldRecall = (text: string) => RECALL_TRIGGERS.some(t => text.includes(t))
+
 export function FriendChatView({ conversation, friend, onBack }: FriendChatViewProps) {
   const {
     addConversationMessage,
     renameConversation,
-    setActiveView,
-    addTask,
     addLog,
+    addTask,
+    addMemory,
+    searchMemories,
   } = useAppStore()
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(conversation.name)
-  const [isLoadingAgent, setIsLoadingAgent] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Run as ReAct agent via SSE stream
+  // BUG-2 fix: standard SSE parsing with \n\n event boundary
   const runAgent = async (task: string) => {
-    const taskId = addTask({
-      title: `${friend.name} 🤖 Agent 运行中`,
+    addTask({
+      title: `${friend.name} 🤖 Agent`,
       description: task.slice(0, 40),
       status: 'running',
     })
@@ -39,7 +45,7 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
     const systemBase = `你是 ${friend.name}，${friend.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
 
     try {
-      setIsLoadingAgent(true)
+      setIsLoading(true)
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51,63 +57,91 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
           task,
           history: conversation.messages.map(m => ({ role: m.role, content: m.content })),
           systemBase,
-          conversationId: conversation.id,
         }),
       })
 
       if (!res.ok) {
-        addLog({ level: 'error', message: `${friend.name} Agent 执行失败：${res.statusText}` })
+        addLog({ level: 'error', message: `${friend.name} Agent 失败：${res.statusText}` })
         return
       }
 
       const reader = res.body?.getReader()
       if (!reader) return
 
-      let fullContent = ''
       const decoder = new TextDecoder()
+      let buffer = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        fullContent += chunk
+        buffer += decoder.decode(value, { stream: true })
 
-        // Parse SSE events
-        const lines = fullContent.split('\n')
-        for (let i = 0; i < lines.length - 1; i++) {
-          const line = lines[i].trim()
-          if (line.startsWith('data:')) {
-            try {
-              const data = JSON.parse(line.slice(5))
+        // SSE events are separated by \n\n
+        const events = buffer.split('\n\n')
+        buffer = events.pop() ?? ''
 
-              if (data.type === 'thinking' || data.type === 'message') {
-                addConversationMessage(conversation.id, {
-                  role: 'assistant',
-                  content: data.content,
-                  senderId: friend.id,
-                  senderName: friend.name,
-                  attachments: [],
-                })
-              }
+        for (const event of events) {
+          const dataLine = event.split('\n').find(l => l.startsWith('data:'))
+          if (!dataLine) continue
+          try {
+            const data = JSON.parse(dataLine.slice(5).trim())
 
-              if (data.type === 'completed') {
-                addLog({ level: 'success', message: `${friend.name} Agent 任务完成` })
-              }
-
-              if (data.type === 'error') {
-                addLog({ level: 'error', message: `${friend.name} Agent 错误：${data.error}` })
-              }
-            } catch {}
-          }
+            if (data.type === 'thinking' || data.type === 'message') {
+              addConversationMessage(conversation.id, {
+                role: 'assistant',
+                content: data.content,
+                senderId: friend.id,
+                senderName: friend.name,
+                attachments: [],
+              })
+            }
+            if (data.type === 'done' || data.type === 'completed') {
+              addLog({ level: 'success', message: `${friend.name} Agent 任务完成` })
+            }
+            if (data.type === 'error') {
+              addLog({ level: 'error', message: `${friend.name} Agent 错误：${data.error}` })
+            }
+          } catch { /* skip malformed lines */ }
         }
-
-        fullContent = lines[lines.length - 1]
       }
     } catch (err) {
-      addLog({ level: 'error', message: `${friend.name} Agent 执行异常：${err instanceof Error ? err.message : '未知错误'}` })
+      addLog({ level: 'error', message: `${friend.name} Agent 异常：${err instanceof Error ? err.message : '未知错误'}` })
     } finally {
-      setIsLoadingAgent(false)
+      setIsLoading(false)
+    }
+  }
+
+  // BUG-3 fix: normal chat calls /api/chat
+  const runChat = async (content: string, systemExtra?: string) => {
+    setIsLoading(true)
+    try {
+      const history = conversation.messages.map(m => ({ role: m.role, content: m.content }))
+      const systemPrompt = `你是 ${friend.name}。${friend.description}${systemExtra ?? ''}`
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: friend.provider,
+          model: friend.model,
+          apiKey: friend.apiKey,
+          messages: [...history, { role: 'user', content }],
+          systemPrompt,
+        }),
+      })
+      const data = await res.json()
+      const reply = data.response ?? data.content ?? data.message ?? '...'
+      addConversationMessage(conversation.id, {
+        role: 'assistant',
+        content: reply,
+        senderId: friend.id,
+        senderName: friend.name,
+        attachments: [],
+      })
+    } catch (err) {
+      addLog({ level: 'error', message: `${friend.name} 回复失败` })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -116,6 +150,60 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
       renameConversation(conversation.id, newName)
     }
     setIsRenaming(false)
+  }
+
+  const handleSendMessage = async (content: string) => {
+    const isAgentMode = content.startsWith('/agent ')
+    const actualContent = isAgentMode ? content.slice(7).trim() : content
+
+    // Handle memory: store
+    if (!isAgentMode && shouldRemember(actualContent)) {
+      const memContent = actualContent
+        .replace(/记住这个[：:]?\s*|记住[：:]?\s*|记一下[：:]?\s*|记录一下[：:]?\s*/g, '')
+        .trim()
+
+      addConversationMessage(conversation.id, {
+        role: 'user', content: actualContent,
+        senderId: 'user', senderName: '你', attachments: [],
+      })
+
+      if (memContent) {
+        addMemory({
+          friendId: friend.id,
+          content: memContent,
+          summary: memContent.slice(0, 60),
+          tags: memContent.split(/[\s，,、]+/).filter(t => t.length > 1 && t.length < 10).slice(0, 5),
+          sourceConvId: conversation.id,
+        })
+        addConversationMessage(conversation.id, {
+          role: 'assistant',
+          content: `✅ 已记住：${memContent.slice(0, 60)}${memContent.length > 60 ? '...' : ''}`,
+          senderId: friend.id, senderName: friend.name, attachments: [],
+        })
+      }
+      return
+    }
+
+    // Store user message
+    addConversationMessage(conversation.id, {
+      role: 'user', content: actualContent,
+      senderId: 'user', senderName: '你', attachments: [],
+    })
+
+    if (isAgentMode) {
+      await runAgent(actualContent)
+    } else {
+      // Handle memory: recall — inject relevant memories into system prompt
+      let memoryContext = ''
+      if (shouldRecall(actualContent)) {
+        const relevantMemories = searchMemories(friend.id, actualContent)
+        if (relevantMemories.length > 0) {
+          memoryContext = '\n\n【用户记忆】以下是你关于该用户的记忆，请基于这些信息回答：\n' +
+            relevantMemories.map(m => `- ${m.content}`).join('\n')
+        }
+      }
+      await runChat(actualContent, memoryContext)
+    }
   }
 
   return (
@@ -146,9 +234,7 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
                   className="h-7 text-sm"
                   autoFocus
                 />
-                <Button size="sm" onClick={handleRename}>
-                  保存
-                </Button>
+                <Button size="sm" onClick={handleRename}>保存</Button>
               </div>
             ) : (
               <div className="flex items-center gap-2 group">
@@ -173,24 +259,9 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
         <ChatArea
           messages={conversation.messages}
           members={[friend]}
-          placeholder="输入消息或以 /agent 开头触发 Agent..."
-          isLoading={isLoadingAgent}
-          onSendMessage={async (content) => {
-            const isCommand = content.startsWith('/agent ')
-            const actualContent = isCommand ? content.slice(6).trim() : content
-
-            addConversationMessage(conversation.id, {
-              role: 'user',
-              content: actualContent,
-              senderId: 'user',
-              senderName: '你',
-              attachments: [],
-            })
-
-            if (isCommand) {
-              await runAgent(actualContent)
-            }
-          }}
+          placeholder="输入消息，或以 /agent 开头触发 Agent 模式..."
+          isLoading={isLoading}
+          onSendMessage={handleSendMessage}
         />
       </div>
     </div>

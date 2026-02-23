@@ -12,12 +12,24 @@ import { Button } from '@/components/ui/button'
 import { MessageSquare, LayoutGrid, Bot, Settings, PanelRight, Zap, Menu } from 'lucide-react'
 
 export function MainLayout() {
-  const { activeView, setActiveView, toggleSidebar, tasks, hydrate, friends, groups, activeConversationId, conversations } = useAppStore()
+  const { activeView, setActiveView, toggleSidebar, tasks, hydrate, friends, groups, activeConversationId, conversations, setActiveGroup, setActiveConversation } = useAppStore()
   const [showContactSidebar, setShowContactSidebar] = useState(true)
   const runningTasks = tasks.filter(t => t.status === 'running').length
 
   // Get active friend and conversation
   const activeConversation = conversations.find(c => c.id === activeConversationId)
+
+  // BUG-1 fix: proper sidebar routing handlers
+  const handleSelectGroup = (groupId: string) => {
+    setActiveGroup(groupId)
+    setActiveConversation(null)
+    setActiveView('main')
+  }
+
+  const handleSelectConversation = (convId: string) => {
+    setActiveConversation(convId)
+    // activeView stays as-is; MainLayout will render FriendChatView when activeConversation is set
+  }
   const activeFriend = activeConversation ? friends.find(f => f.id === activeConversation.friendId) : null
 
   useEffect(() => { hydrate() }, [])
@@ -80,8 +92,8 @@ export function MainLayout() {
             {showContactSidebar && (
               <ContactSidebar
                 activeConversationId={activeConversationId}
-                onSelectConversation={() => {}}
-                onSelectGroup={() => {}}
+                onSelectConversation={handleSelectConversation}
+                onSelectGroup={handleSelectGroup}
               />
             )}
             

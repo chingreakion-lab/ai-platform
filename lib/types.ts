@@ -254,3 +254,14 @@ export const DEFAULT_ROLE_CARDS: Array<Omit<RoleCard, 'id' | 'createdAt' | 'upda
   },
 ]
 
+
+export interface Memory {
+  id: string
+  friendId: string           // 属于哪个好友
+  content: string            // 记忆内容
+  summary: string            // 一句话摘要（用于检索展示）
+  tags: string[]             // 关键词标签
+  sourceConvId?: string      // 来自哪个 1:1 对话
+  sourceGroupId?: string     // 来自哪个群
+  createdAt: number
+}

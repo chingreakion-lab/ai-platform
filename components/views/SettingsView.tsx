@@ -21,7 +21,7 @@ const providerConfig: Record<AIProvider, { label: string; color: string; models:
 const defaultForm = { name: '', provider: 'xai' as AIProvider, model: 'grok-3', apiKey: '', description: '', role: 'feature' as 'chief'|'feature', avatar: '#6366f1' }
 
 export function SettingsView() {
-  const { friends, addFriend, updateFriend, removeFriend } = useAppStore()
+  const { friends, addFriend, updateFriend, removeFriend, getMemoriesByFriend, deleteMemory } = useAppStore()
   const [showAdd, setShowAdd] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState({ ...defaultForm })
@@ -164,6 +164,63 @@ export function SettingsView() {
             </div>
           </div>
         </div>
+
+        {/* Memory Management */}
+        {friends.some(f => getMemoriesByFriend(f.id).length > 0) && (
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-6 py-4 border-b flex items-center gap-2">
+              <Database className="h-4 w-4 text-purple-500" />
+              <h2 className="text-sm font-semibold text-gray-800">记忆管理</h2>
+            </div>
+            <div className="divide-y">
+              {friends.map(f => {
+                const mems = getMemoriesByFriend(f.id)
+                if (mems.length === 0) return null
+                return (
+                  <div key={f.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                          style={{ backgroundColor: f.avatar }}>{f.name.charAt(0)}</div>
+                        <span className="text-sm font-medium text-gray-700">{f.name}</span>
+                        <Badge variant="secondary" className="text-[10px]">{mems.length} 条记忆</Badge>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs text-red-500 border-red-200 hover:bg-red-50 h-7"
+                        onClick={() => {
+                          if (confirm(`确定清空 ${f.name} 的所有记忆？此操作不可撤销。`)) {
+                            mems.forEach(m => deleteMemory(m.id))
+                          }
+                        }}
+                      >
+                        清空全部
+                      </Button>
+                    </div>
+                    <div className="space-y-1">
+                      {mems.map(m => (
+                        <div key={m.id} className="flex items-start justify-between gap-2 py-1.5 px-2 rounded hover:bg-gray-50 group">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-700 truncate">{m.summary}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {new Date(m.createdAt).toLocaleDateString('zh-CN')}
+                              {m.tags.length > 0 && ` · ${m.tags.slice(0, 3).join(', ')}`}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => deleteMemory(m.id)}
+                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all shrink-0 text-xs mt-0.5"
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Friend Modal */}

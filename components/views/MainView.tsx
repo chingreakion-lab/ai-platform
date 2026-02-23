@@ -15,14 +15,18 @@ import { Group, Message, AIFriend, Attachment } from '@/lib/types'
 import { v4 as uuidv4 } from 'uuid'
 
 export function MainView() {
-  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView } = useAppStore()
+  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView, roleCards, updateGroupMemberRole } = useAppStore()
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showAnnouncement, setShowAnnouncement] = useState(false)
+  const [showMemberSettings, setShowMemberSettings] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
   const [announcementText, setAnnouncementText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [memberRoles, setMemberRoles] = useState<Record<string, string>>({}) // friendId -> roleCardId
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false)
+  const [roleDialogFriendId, setRoleDialogFriendId] = useState<string | null>(null)
 
   const selectedGroup = groups.find(g => g.id === selectedGroupId)
   const groupMembers = selectedGroup ? friends.filter(f => selectedGroup.members.some(m => m.friendId === f.id)) : []
@@ -47,9 +51,17 @@ export function MainView() {
   ) => {
     const taskId = addTask({ title: `${member.name} 🤖 Agent 运行中`, description: task.slice(0, 40), status: 'running' })
 
-    const systemBase = selectedGroup?.announcement
-      ? `你是 ${member.name}，${member.description}。\n\n群组工作目标：${selectedGroup.announcement}\n\n你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
-      : `你是 ${member.name}，${member.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
+    // Get the member's role card in this group (if assigned)
+    const memberInGroup = selectedGroup?.members.find(m => m.friendId === member.id)
+    const roleCard = memberInGroup?.roleCardId ? roleCards.find(c => c.id === memberInGroup.roleCardId) : null
+
+    // Build system prompt: use role card if assigned, otherwise use default
+    let systemBase = roleCard?.systemPrompt || `你是 ${member.name}，${member.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
+
+    // Add group announcement if present
+    if (selectedGroup?.announcement) {
+      systemBase += `\n\n群组工作目标：${selectedGroup.announcement}`
+    }
 
     try {
       const res = await fetch('/api/agent', {
@@ -271,13 +283,25 @@ export function MainView() {
             <div className="flex items-center gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-gray-800">{selectedGroup.name}</h2>
-                <div className="flex items-center gap-1 mt-0.5">
-                  {groupMembers.map(m => (
-                    <span key={m.id} className="flex items-center gap-1 text-[11px] text-gray-500">
-                      <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: m.avatar }} />
-                      {m.name}
-                    </span>
-                  ))}
+                <div className="flex items-center gap-2 mt-0.5">
+                  {groupMembers.map(m => {
+                    const memberInGroup = selectedGroup?.members.find(gm => gm.friendId === m.id)
+                    const roleCard = memberInGroup?.roleCardId ? roleCards.find(r => r.id === memberInGroup.roleCardId) : null
+                    return (
+                      <button
+                        key={m.id}
+                        title="点击分配角色"
+                        onClick={() => { setRoleDialogFriendId(m.id); setRoleDialogOpen(true) }}
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                      >
+                        <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ backgroundColor: m.avatar }} />
+                        <span className="text-[11px] text-gray-600">{m.name}</span>
+                        {roleCard && (
+                          <span className="text-[10px] text-blue-500">{roleCard.emoji}</span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -405,6 +429,58 @@ export function MainView() {
             <Button variant="outline" onClick={() => setShowAnnouncement(false)}>取消</Button>
             <Button onClick={handleSaveAnnouncement}>保存</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Role Assignment Dialog */}
+      <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              为 {friends.find(f => f.id === roleDialogFriendId)?.name} 分配角色
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2 py-2">
+            {/* No role option */}
+            <button
+              onClick={() => {
+                if (selectedGroup && roleDialogFriendId) {
+                  updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, '')
+                }
+                setRoleDialogOpen(false)
+              }}
+              className="flex flex-col items-center gap-1 p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+            >
+              <span className="text-2xl">👤</span>
+              <span className="text-xs font-medium text-gray-600">无角色</span>
+              <span className="text-[10px] text-gray-400 text-center">使用默认行为</span>
+            </button>
+            {/* Role cards */}
+            {roleCards.map(card => {
+              const currentRoleId = selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
+              const isSelected = currentRoleId === card.id
+              return (
+                <button
+                  key={card.id}
+                  onClick={() => {
+                    if (selectedGroup && roleDialogFriendId) {
+                      updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, card.id)
+                    }
+                    setRoleDialogOpen(false)
+                  }}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-colors ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                  }`}
+                >
+                  <span className="text-2xl">{card.emoji}</span>
+                  <span className="text-xs font-medium text-gray-700">{card.name}</span>
+                  <span className="text-[10px] text-gray-400 text-center line-clamp-2">{card.expertArea}</span>
+                </button>
+              )
+            })}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
