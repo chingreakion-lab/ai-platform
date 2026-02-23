@@ -126,10 +126,13 @@ async function executeCode(language: string, code: string): Promise<string> {
 
 async function writeFile(path: string, content: string): Promise<string> {
   try {
-    // 确保目录存在
-    const dirPath = path.replace(/\/[^/]*$/, '') || '.'
-    const dirCmd = ['sh', '-c', `mkdir -p "${WORKSPACE_PATH}/${dirPath}"`]
-    await execFileAsync('docker', ['exec', WORKSPACE_CONTAINER, ...dirCmd], { timeout: 5000 })
+    // 确保目录存在（只有路径里包含 / 才需要 mkdir）
+    const lastSlash = path.lastIndexOf('/')
+    if (lastSlash > 0) {
+      const dirPath = path.slice(0, lastSlash)
+      const dirCmd = ['sh', '-c', `mkdir -p "${WORKSPACE_PATH}/${dirPath}"`]
+      await execFileAsync('docker', ['exec', WORKSPACE_CONTAINER, ...dirCmd], { timeout: 5000 })
+    }
 
     // 写入文件
     const fullPath = `${WORKSPACE_PATH}/${path.replace(/^\//, '')}`

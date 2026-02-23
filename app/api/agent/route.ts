@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         // ─── CLAUDE (Anthropic) ───────────────────────────────────────────────
         if (provider === 'claude') {
           const Anthropic = (await import('@anthropic-ai/sdk')).default
-          const anthropic = new Anthropic({ apiKey })
+          const anthropic = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com' })
 
           const messages: Array<{ role: 'user' | 'assistant'; content: any }> = [
             ...(history || []).map((m: any) => ({ role: m.role, content: m.content })),
@@ -223,12 +223,14 @@ export async function POST(req: NextRequest) {
             }))
           })
 
+          // Send the initial task (only once)
+          let lastResult = await chat.sendMessage(`任务：${task}`)
+
           while (iteration < MAX_ITERATIONS) {
             iteration++
             push(sseEvent('thinking', { agent: agentName, iteration }))
 
-            const result = await chat.sendMessage(`任务：${task}`)
-            const response = result.response
+            const response = lastResult.response
 
             const textParts = response.candidates?.[0]?.content?.parts?.filter((p: any) => p.text) || []
             for (const part of textParts) {
@@ -258,8 +260,8 @@ export async function POST(req: NextRequest) {
                 })
               }
 
-              // Send tool results back to model
-              await chat.sendMessage(functionResponses as any)
+              // Send tool results back to model, get next response
+              lastResult = await chat.sendMessage(functionResponses as any)
             } else {
               // No function calls, task complete
               const finalText = textParts.map((p: any) => p.text).join('\n')
