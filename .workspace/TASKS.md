@@ -140,9 +140,23 @@ Grok 写的文件 Gemini 能直接读到，装过的包不用重装。
 
 ---
 
-### [ ] TASK-2 UI 重构：好友 + 群组系统
+### [~] TASK-2 UI 重构：好友 + 群组系统
 优先级：P0
 预计工作量：6-8小时
+
+进度：2-B 编译修复完成，正进行 2-C
+- TASK-2-A ✅ 完成：修改 /lib/types.ts - 添加 Conversation 和 GroupMember 接口
+- TASK-2-B ✅ 完成：编辑 /lib/store.ts - 添加对话框管理方法，修复 Group.members 类型变更
+  - 添加 Conversation 接口支持 1:1 好友对话
+  - 添加 6 个对话管理方法：addConversation, deleteConversation, renameConversation, addConversationMessage, setActiveConversation, getConversationsByFriend
+  - 修改 Group 结构：members 从 string[] 改为 GroupMember[]（包含 friendId + roleCardId）
+  - 修复编译错误：更新 MainView.tsx 和 FeatureView.tsx 中的 members 访问模式
+  - createGroup 签名改为接受 string[] 并在 store 内部转换为 GroupMember[]
+- TASK-2-C ⏳ 进行中：创建 ContactSidebar.tsx（左侧边栏展示好友和群组）
+- TASK-2-D ⏳ 待开始：创建 FriendChatView.tsx（1:1 对话界面）
+- TASK-2-E ⏳ 待开始：改造 MainLayout.tsx（用侧边栏替代上方标签导航）
+
+编译状态：✅ npm run build 成功（Turbopack 编译 1332ms，TypeScript 编译通过）
 
 目标：
 - 好友列表和群组列表并列（都在左侧边栏）

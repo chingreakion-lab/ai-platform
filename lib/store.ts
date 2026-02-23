@@ -1,6 +1,6 @@
 'use client'
 import { create } from 'zustand'
-import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, Attachment, BoardStatus, BoardHistory } from './types'
+import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, Attachment, BoardStatus, BoardHistory, Conversation, GroupMember } from './types'
 import { v4 as uuidv4 } from 'uuid'
 
 // API keys loaded from .env.local (NEXT_PUBLIC_ prefix for client-side access)
@@ -56,6 +56,7 @@ function saveToStorage(state: Partial<AppState>) {
     const toSave = {
       friends: state.friends,
       groups: state.groups,
+      conversations: state.conversations,
       featureBoards: state.featureBoards,
       tasks: state.tasks,
       logs: state.logs,
@@ -68,6 +69,7 @@ function saveToStorage(state: Partial<AppState>) {
 interface AppState {
   friends: AIFriend[]
   groups: Group[]
+  conversations: Conversation[] // new: friend conversations
   featureBoards: FeatureBoard[]
   tasks: Task[]
   logs: LogEntry[]
@@ -75,6 +77,7 @@ interface AppState {
   sidebarOpen: boolean
   activeGroupId: string | null
   activeBoardId: string | null
+  activeConversationId: string | null // new: active conversation id
   outerMessages: Message[]
   _hydrated: boolean
 
@@ -82,6 +85,15 @@ interface AppState {
   addFriend: (friend: Omit<AIFriend, 'id'>) => void
   updateFriend: (id: string, updates: Partial<AIFriend>) => void
   removeFriend: (id: string) => void
+  
+  // Conversation methods (new)
+  addConversation: (friendId: string, name: string) => string
+  deleteConversation: (id: string) => void
+  renameConversation: (id: string, name: string) => void
+  addConversationMessage: (conversationId: string, message: Omit<Message, 'id' | 'timestamp'>) => void
+  setActiveConversation: (id: string | null) => void
+  getConversationsByFriend: (friendId: string) => Conversation[]
+  
   createGroup: (name: string, memberIds: string[]) => string
   updateGroup: (id: string, updates: Partial<Group>) => void
   deleteGroup: (id: string) => void
@@ -107,6 +119,7 @@ interface AppState {
 export const useAppStore = create<AppState>()((set, get) => ({
   friends: defaultFriends,
   groups: [],
+  conversations: [],
   featureBoards: [],
   tasks: [],
   logs: [],
@@ -114,6 +127,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   sidebarOpen: false,
   activeGroupId: null,
   activeBoardId: null,
+  activeConversationId: null,
   outerMessages: [],
   _hydrated: false,
 
@@ -124,6 +138,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       set({
         friends: saved.friends?.length ? saved.friends : defaultFriends,
         groups: saved.groups || [],
+        conversations: saved.conversations || [],
         featureBoards: saved.featureBoards || [],
         tasks: saved.tasks || [],
         logs: saved.logs || [],
@@ -151,13 +166,64 @@ export const useAppStore = create<AppState>()((set, get) => ({
     return next
   }),
 
+  // Conversation management (new)
+  addConversation: (friendId, name) => {
+    const id = uuidv4()
+    set((state) => {
+      const next = {
+        ...state,
+        conversations: [...state.conversations, {
+          id, friendId, name,
+          messages: [],
+          createdAt: Date.now(),
+          lastActiveAt: Date.now()
+        }],
+        activeConversationId: id,
+      }
+      saveToStorage(next)
+      return next
+    })
+    return id
+  },
+
+  deleteConversation: (id) => set((state) => {
+    const next = { ...state, conversations: state.conversations.filter(c => c.id !== id) }
+    saveToStorage(next)
+    return next
+  }),
+
+  renameConversation: (id, name) => set((state) => {
+    const next = { ...state, conversations: state.conversations.map(c => c.id === id ? { ...c, name } : c) }
+    saveToStorage(next)
+    return next
+  }),
+
+  addConversationMessage: (conversationId, message) => set((state) => {
+    const next = {
+      ...state,
+      conversations: state.conversations.map(c => c.id === conversationId ? {
+        ...c,
+        messages: [...c.messages, { ...message, id: uuidv4(), timestamp: Date.now() }],
+        lastActiveAt: Date.now()
+      } : c)
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  setActiveConversation: (id) => set({ activeConversationId: id }),
+
+  getConversationsByFriend: (friendId) => {
+    return get().conversations.filter(c => c.friendId === friendId)
+  },
+
   createGroup: (name, memberIds) => {
     const id = uuidv4()
     set((state) => {
       const next = {
         ...state,
         groups: [...state.groups, {
-          id, name, members: memberIds,
+          id, name, members: memberIds.map(friendId => ({ friendId, roleCardId: '' })), // convert string[] to GroupMember[]
           announcement: '', announcementFiles: [],
           messages: [], boundBoardIds: [],
           createdAt: Date.now()

@@ -25,7 +25,7 @@ export function MainView() {
   const [isLoading, setIsLoading] = useState(false)
 
   const selectedGroup = groups.find(g => g.id === selectedGroupId)
-  const groupMembers = selectedGroup ? friends.filter(f => selectedGroup.members.includes(f.id)) : []
+  const groupMembers = selectedGroup ? friends.filter(f => selectedGroup.members.some(m => m.friendId === f.id)) : []
   const boundBoards = selectedGroup ? featureBoards.filter(b => selectedGroup.boundBoardIds.includes(b.id)) : []
 
   const handleCreateGroup = () => {
@@ -228,7 +228,7 @@ export function MainView() {
               </div>
             )}
             {groups.map(group => {
-              const members = friends.filter(f => group.members.includes(f.id))
+              const members = friends.filter(f => group.members.some(m => m.friendId === f.id))
               const lastMsg = group.messages[group.messages.length - 1]
               return (
                 <button key={group.id}

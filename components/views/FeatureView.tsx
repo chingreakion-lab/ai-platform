@@ -41,7 +41,7 @@ export function FeatureView() {
 
   const boundGroups = activeBoard ? groups.filter(g => activeBoard.boundGroupIds.includes(g.id)) : []
   const chatGroup = groups.find(g => g.id === chatGroupId)
-  const chatMembers = chatGroup ? friends.filter(f => chatGroup.members.includes(f.id)) : []
+  const chatMembers = chatGroup ? friends.filter(f => chatGroup.members.some(m => m.friendId === f.id)) : []
 
   const handleCreate = () => {
     if (!newName.trim()) return

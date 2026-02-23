@@ -29,10 +29,24 @@ export interface Attachment {
   size: number
 }
 
+export interface Conversation {
+  id: string
+  friendId: string
+  name: string
+  messages: Message[]
+  createdAt: number
+  lastActiveAt: number
+}
+
+export interface GroupMember {
+  friendId: string
+  roleCardId: string
+}
+
 export interface Group {
   id: string
   name: string
-  members: string[] // AIFriend ids
+  members: GroupMember[] // changed from string[] to support role cards
   announcement: string
   announcementFiles: Attachment[]
   messages: Message[]
