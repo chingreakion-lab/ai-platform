@@ -2,9 +2,7 @@
 import { useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { ChatArea } from '@/components/chat/ChatArea'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Edit, ChevronLeft } from 'lucide-react'
 import { Conversation, AIFriend, Attachment } from '@/lib/types'
 import { v4 as uuidv4 } from 'uuid'
@@ -20,6 +18,12 @@ const REMEMBER_TRIGGERS = ['记住', '记一下', '记住这个', '记录一下'
 const RECALL_TRIGGERS = ['还记得', '你记得', '想起', '之前说过', '我说过']
 const shouldRemember = (text: string) => REMEMBER_TRIGGERS.some(t => text.includes(t))
 const shouldRecall = (text: string) => RECALL_TRIGGERS.some(t => text.includes(t))
+
+const PROVIDER_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  gemini: { label: 'Gemini', color: '#4285f4', bg: 'rgba(66,133,244,0.12)' },
+  claude: { label: 'Claude', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  xai: { label: 'xAI', color: '#e8e9f0', bg: 'rgba(255,255,255,0.08)' },
+}
 
 export function FriendChatView({ conversation, friend, onBack }: FriendChatViewProps) {
   const {
@@ -287,53 +291,165 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
     }
   }
 
+  const badge = PROVIDER_BADGE[friend.provider] || PROVIDER_BADGE.xai
+
   return (
-    <div className="flex flex-col h-full bg-[#0e0f1a]">
+    <div className="flex-1 flex flex-col h-full" style={{ background: '#0e0f1a' }}>
       {/* Header */}
-      <header className="border-b bg-[#0e0f1a] px-4 py-3 flex items-center justify-between shrink-0">
+      <div
+        style={{
+          height: 64,
+          borderBottom: '1px solid #262736',
+          background: 'rgba(14,15,26,0.5)',
+          backdropFilter: 'blur(8px)',
+        }}
+        className="flex items-center justify-between px-6 z-10 shrink-0"
+      >
+        {/* Left: avatar + name + provider badge */}
         <div className="flex items-center gap-3">
           {onBack && (
-            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+            <button
+              onClick={onBack}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: 'rgba(255,255,255,0.06)',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#8e9299',
+              }}
+            >
+              <ChevronLeft style={{ width: 16, height: 16 }} />
+            </button>
           )}
-          <Avatar className="h-8 w-8">
-            <AvatarFallback style={{ backgroundColor: friend.avatar }} className="text-white text-xs font-bold">
-              {friend.name.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            {isRenaming ? (
-              <div className="flex gap-1">
-                <Input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleRename()
-                    if (e.key === 'Escape') setIsRenaming(false)
-                  }}
-                  className="h-7 text-sm"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleRename}>保存</Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 group">
-                <h2 className="font-semibold text-sm text-white/85">{conversation.name}</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => setIsRenaming(true)}
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-            <p className="text-xs text-white/40">{friend.description}</p>
+
+          {/* Avatar */}
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: friend.avatar,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#fff',
+              flexShrink: 0,
+            }}
+          >
+            {friend.name.charAt(0)}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              {isRenaming ? (
+                <div className="flex gap-2 items-center">
+                  <Input
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleRename()
+                      if (e.key === 'Escape') setIsRenaming(false)
+                    }}
+                    className="h-7 text-sm"
+                    autoFocus
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid #4285f4', borderRadius: 6, color: '#e8e9f0', width: 160 }}
+                  />
+                  <button
+                    onClick={handleRename}
+                    style={{ padding: '4px 12px', borderRadius: 6, background: '#4285f4', border: 'none', color: '#fff', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    保存
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <h2 style={{ fontSize: 15, fontWeight: 600, color: '#e8e9f0' }}>{conversation.name}</h2>
+                  <button
+                    onClick={() => setIsRenaming(true)}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 6,
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#8e9299',
+                      opacity: 0,
+                    }}
+                    className="group-hover:opacity-100"
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+                  >
+                    <Edit style={{ width: 12, height: 12 }} />
+                  </button>
+                </div>
+              )}
+
+              {/* Provider badge */}
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: 20,
+                  color: badge.color,
+                  background: badge.bg,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {badge.label}
+              </span>
+            </div>
+            <p style={{ fontSize: 11, color: '#8e9299', marginTop: 1 }}>{friend.description}</p>
           </div>
         </div>
-      </header>
+      </div>
+
+      {/* Agent status bar */}
+      <div
+        style={{
+          background: 'rgba(66,133,244,0.1)',
+          borderBottom: '1px solid rgba(66,133,244,0.2)',
+          padding: '6px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#4285f4',
+            }}
+            className="animate-pulse"
+          />
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#4285f4',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Agent Ready
+          </span>
+        </div>
+        <span style={{ fontSize: 9, color: '#8e9299' }}>输入 /agent 触发自主模式</span>
+      </div>
 
       {/* Chat Area */}
       <div className="flex-1 overflow-hidden">

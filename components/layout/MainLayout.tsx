@@ -125,11 +125,7 @@ export function MainLayout() {
       </nav>
 
       {/* ── Contact sidebar ── */}
-      <ContactSidebar
-        activeConversationId={activeConversationId}
-        onSelectConversation={handleSelectConversation}
-        onSelectGroup={handleSelectGroup}
-      />
+      <ContactSidebar />
 
       {/* ── Main content ── */}
       <main className="flex-1 overflow-hidden">

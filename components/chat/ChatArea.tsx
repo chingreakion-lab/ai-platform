@@ -5,10 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism'
 import { Message, AIFriend } from '@/lib/types'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Send, Paperclip, Loader2, Play, Copy, Check, Terminal } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -51,19 +48,25 @@ function RunnableCodeBlock({ language, code }: { language: string; code: string 
   }
 
   return (
-    <div className="my-2.5 rounded-xl overflow-hidden border border-[#2d2d2d] text-sm not-prose">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#21252b]">
-        <span className="text-xs text-[#7a8499] font-mono select-none">{language || 'text'}</span>
-        <div className="flex items-center gap-1.5">
-          <button onClick={handleCopy} className="flex items-center gap-1 text-xs text-[#7a8499] hover:text-[#abb2bf] transition-colors px-1.5 py-0.5 rounded hover:bg-[#2c313a]">
-            {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
-            <span>{copied ? '已复制' : '复制'}</span>
+    <div style={{ margin: '10px 0', borderRadius: 12, overflow: 'hidden', border: '1px solid #262736', fontSize: 13 }} className="not-prose">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: '#1a1b2e' }}>
+        <span style={{ fontSize: 11, color: '#8e9299', fontFamily: 'monospace', userSelect: 'none' }}>{language || 'text'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={handleCopy}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: copied ? '#22c55e' : '#8e9299', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}
+          >
+            {copied ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
+            {copied ? '已复制' : '复制'}
           </button>
           {canRun && (
-            <button onClick={handleRun} disabled={running}
-              className="flex items-center gap-1 text-xs bg-[#528bff] hover:bg-[#4d84f5] disabled:opacity-40 text-white px-2.5 py-0.5 rounded transition-colors font-medium">
-              {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3 fill-current" />}
-              <span>{running ? '运行中...' : '运行'}</span>
+            <button
+              onClick={handleRun}
+              disabled={running}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#fff', background: running ? 'rgba(66,133,244,0.4)' : '#4285f4', border: 'none', cursor: running ? 'not-allowed' : 'pointer', padding: '3px 10px', borderRadius: 6, fontWeight: 600 }}
+            >
+              {running ? <Loader2 style={{ width: 11, height: 11 }} className="animate-spin" /> : <Play style={{ width: 11, height: 11 }} />}
+              {running ? '运行中...' : '运行'}
             </button>
           )}
         </div>
@@ -71,30 +74,39 @@ function RunnableCodeBlock({ language, code }: { language: string; code: string 
       <SyntaxHighlighter
         language={language || 'text'}
         style={oneDark}
-        customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.775rem', lineHeight: '1.6', background: '#282c34', padding: '12px 16px' }}
+        customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.775rem', lineHeight: '1.6', background: '#161724', padding: '12px 16px' }}
         showLineNumbers={code.split('\n').length > 4}
-        lineNumberStyle={{ color: '#4b5263', fontSize: '0.7rem', minWidth: '2.2em', userSelect: 'none' }}
+        lineNumberStyle={{ color: '#3a3b4e', fontSize: '0.7rem', minWidth: '2.2em', userSelect: 'none' }}
         wrapLongLines={false}
       >
         {code}
       </SyntaxHighlighter>
       {result && (
-        <div className={`border-t ${result.exitCode === 0 ? 'border-[#1a3a1a] bg-[#0d1a0d]' : 'border-[#3a1a1a] bg-[#1a0d0d]'}`}>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[#2d2d2d]">
-            <Terminal className="h-3 w-3 text-[#7a8499]" />
-            <span className="text-xs text-[#7a8499] font-mono">
-              输出{result.exitCode !== 0 && <span className="ml-2 text-red-400">退出码 {result.exitCode}</span>}
+        <div style={{ borderTop: `1px solid ${result.exitCode === 0 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`, background: result.exitCode === 0 ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderBottom: '1px solid #262736' }}>
+            <Terminal style={{ width: 11, height: 11, color: '#8e9299' }} />
+            <span style={{ fontSize: 11, color: '#8e9299', fontFamily: 'monospace' }}>
+              输出{result.exitCode !== 0 && <span style={{ marginLeft: 8, color: '#f87171' }}>退出码 {result.exitCode}</span>}
             </span>
           </div>
-          <pre className="p-3 text-xs font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto max-h-48">
-            {result.output ? <span className="text-green-300">{result.output}</span> : null}
-            {result.error && result.exitCode !== 0 ? <span className="text-red-400">{result.error}</span> : null}
-            {!result.output && !result.error ? <span className="text-[#4b5263]">(无输出)</span> : null}
+          <pre style={{ padding: '10px 14px', fontSize: 11, fontFamily: 'monospace', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflowX: 'auto', maxHeight: 192, margin: 0 }}>
+            {result.output ? <span style={{ color: '#86efac' }}>{result.output}</span> : null}
+            {result.error && result.exitCode !== 0 ? <span style={{ color: '#f87171' }}>{result.error}</span> : null}
+            {!result.output && !result.error ? <span style={{ color: '#3a3b4e' }}>(无输出)</span> : null}
           </pre>
         </div>
       )}
     </div>
   )
+}
+
+// Role color for left border
+function getRoleBorderColor(senderName?: string): string | undefined {
+  if (!senderName) return undefined
+  if (senderName.includes('监工')) return '#a855f7'
+  if (senderName.includes('前端')) return '#3b82f6'
+  if (senderName.includes('后端')) return '#22c55e'
+  return undefined
 }
 
 function MarkdownContent({ content, isUser }: { content: string; isUser?: boolean }) {
@@ -108,33 +120,58 @@ function MarkdownContent({ content, isUser }: { content: string; isUser?: boolea
           const code = String(children).replace(/\n$/, '')
           if (match) return <RunnableCodeBlock language={match[1]} code={code} />
           return (
-            <code className={`px-1.5 py-0.5 rounded text-[0.85em] font-mono ${isUser ? 'bg-blue-400/30 text-blue-50' : 'bg-[#2a1a2e] text-rose-400'}`}>
+            <code style={{
+              padding: '1px 6px',
+              borderRadius: 4,
+              fontSize: '0.85em',
+              fontFamily: 'monospace',
+              background: isUser ? 'rgba(255,255,255,0.2)' : 'rgba(66,133,244,0.12)',
+              color: isUser ? '#fff' : '#93bbfc',
+            }}>
               {children}
             </code>
           )
         },
-        p({ children }) { return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p> },
-        h1({ children }) { return <h1 className="text-base font-bold mb-2 mt-3 first:mt-0 pb-1 border-b border-white/10">{children}</h1> },
-        h2({ children }) { return <h2 className="text-sm font-bold mb-2 mt-3 first:mt-0">{children}</h2> },
-        h3({ children }) { return <h3 className="text-sm font-semibold mb-1.5 mt-2 first:mt-0">{children}</h3> },
-        ul({ children }) { return <ul className="list-disc pl-5 space-y-0.5 mb-2">{children}</ul> },
-        ol({ children }) { return <ol className="list-decimal pl-5 space-y-0.5 mb-2">{children}</ol> },
-        li({ children }) { return <li className="leading-relaxed">{children}</li> },
+        p({ children }) { return <p style={{ marginBottom: 6, lineHeight: 1.6 }}>{children}</p> },
+        h1({ children }) { return <h1 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, marginTop: 12, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>{children}</h1> },
+        h2({ children }) { return <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 6, marginTop: 10 }}>{children}</h2> },
+        h3({ children }) { return <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, marginTop: 8 }}>{children}</h3> },
+        ul({ children }) { return <ul style={{ paddingLeft: 20, marginBottom: 6 }}>{children}</ul> },
+        ol({ children }) { return <ol style={{ paddingLeft: 20, marginBottom: 6 }}>{children}</ol> },
+        li({ children }) { return <li style={{ marginBottom: 2, lineHeight: 1.6 }}>{children}</li> },
         blockquote({ children }) {
-          return <blockquote className={`border-l-4 pl-3 my-2 italic ${isUser ? 'border-blue-300/50 text-blue-100/80' : 'border-gray-300 text-white/40'}`}>{children}</blockquote>
+          return (
+            <blockquote style={{
+              borderLeft: `3px solid ${isUser ? 'rgba(255,255,255,0.4)' : '#4285f4'}`,
+              paddingLeft: 10,
+              margin: '6px 0',
+              opacity: 0.8,
+              fontStyle: 'italic',
+            }}>
+              {children}
+            </blockquote>
+          )
         },
         table({ children }) {
-          return <div className="overflow-x-auto my-2 rounded-lg border border-white/10"><table className="min-w-full text-xs border-collapse">{children}</table></div>
+          return (
+            <div style={{ overflowX: 'auto', margin: '8px 0', borderRadius: 8, border: '1px solid #262736' }}>
+              <table style={{ minWidth: '100%', fontSize: 12, borderCollapse: 'collapse' }}>{children}</table>
+            </div>
+          )
         },
-        thead({ children }) { return <thead className="bg-[#0e0f1a]/5">{children}</thead> },
-        th({ children }) { return <th className="border-b border-white/10 px-3 py-1.5 text-left font-semibold text-white/75">{children}</th> },
-        td({ children }) { return <td className="border-b border-white/[0.06] px-3 py-1.5">{children}</td> },
+        thead({ children }) { return <thead style={{ background: 'rgba(255,255,255,0.04)' }}>{children}</thead> },
+        th({ children }) { return <th style={{ borderBottom: '1px solid #262736', padding: '6px 12px', textAlign: 'left', fontWeight: 600, color: '#e8e9f0' }}>{children}</th> },
+        td({ children }) { return <td style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '6px 12px' }}>{children}</td> },
         a({ href, children }) {
-          return <a href={href} target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${isUser ? 'text-blue-100' : 'text-blue-500 hover:text-blue-700'}`}>{children}</a>
+          return (
+            <a href={href} target="_blank" rel="noreferrer" style={{ color: isUser ? '#bfdbfe' : '#4285f4', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+              {children}
+            </a>
+          )
         },
-        strong({ children }) { return <strong className="font-semibold">{children}</strong> },
-        em({ children }) { return <em className="italic">{children}</em> },
-        hr() { return <hr className={`my-3 ${isUser ? 'border-blue-400/30' : 'border-white/10'}`} /> },
+        strong({ children }) { return <strong style={{ fontWeight: 700 }}>{children}</strong> },
+        em({ children }) { return <em style={{ fontStyle: 'italic' }}>{children}</em> },
+        hr() { return <hr style={{ margin: '10px 0', borderColor: 'rgba(255,255,255,0.08)' }} /> },
       }}
     >
       {content}
@@ -143,7 +180,20 @@ function MarkdownContent({ content, isUser }: { content: string; isUser?: boolea
 }
 
 function StreamingCursor() {
-  return <span className="inline-block w-0.5 h-3.5 bg-current ml-0.5 animate-pulse align-middle opacity-60" />
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: 8,
+        height: 16,
+        background: '#4285f4',
+        marginLeft: 4,
+        verticalAlign: 'middle',
+        borderRadius: 2,
+      }}
+      className="animate-pulse"
+    />
+  )
 }
 
 interface ChatAreaProps {
@@ -168,6 +218,14 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
+  // Auto-expand textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px'
+    }
+  }, [input])
+
   const handleSubmit = async () => {
     if (!input.trim() && files.length === 0) return
     const content = input.trim()
@@ -189,69 +247,117 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
     }
   }
 
+  const hasContent = input.trim().length > 0 || files.length > 0
+  const isBusy = loading || isLoading
+
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: '#0b0c14' }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: '#0e0f1a' }}>
+      {/* Message list */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="py-4 px-4 space-y-1 max-w-3xl mx-auto">
+        <div style={{ padding: '16px 0', maxWidth: 896, margin: '0 auto' }} className="px-4 space-y-1">
           {messages.length === 0 && (
-            <div className="text-center py-20 select-none" style={{ color: 'rgba(255,255,255,0.2)' }}>
-              <div className="text-5xl mb-3 opacity-30">💬</div>
-              <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.25)' }}>暂无消息</p>
-              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.15)' }}>发送消息开始对话</p>
+            <div style={{ textAlign: 'center', padding: '80px 0', userSelect: 'none' }}>
+              <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.2 }}>💬</div>
+              <p style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.2)' }}>暂无消息</p>
+              <p style={{ fontSize: 12, marginTop: 4, color: 'rgba(255,255,255,0.12)' }}>发送消息开始对话</p>
             </div>
           )}
 
-          {messages.map((msg) => {
+          {messages.map(msg => {
             const isUser = msg.role === 'user'
             const isSystem = msg.senderId === 'system'
             const member = members?.find(m => m.id === msg.senderId)
             const isStreaming = streamingMessageId === msg.id
+            const roleBorderColor = !isUser && !isSystem ? getRoleBorderColor(msg.senderName) : undefined
 
             if (isSystem) {
               return (
-                <div key={msg.id} className="flex items-center gap-2 py-0.5 px-2">
-                  <div className="flex-1 h-px bg-[#1a1b2e]" />
-                  <div className="flex items-center gap-1.5 text-[11px] text-white/30 shrink-0 max-w-[75%]">
-                    <span className="font-medium text-white/40 shrink-0">{msg.senderName}</span>
-                    <span className="text-white/15">·</span>
-                    <span className="truncate font-mono">{msg.content}</span>
-                    <span className="text-white/20 shrink-0 tabular-nums">{format(msg.timestamp, 'HH:mm')}</span>
+                <div key={msg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px' }}>
+                  <div style={{ flex: 1, height: 1, background: '#262736' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#8e9299', flexShrink: 0, maxWidth: '75%' }}>
+                    <span style={{ fontWeight: 500, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>{msg.senderName}</span>
+                    <span style={{ color: '#262736' }}>·</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{msg.content}</span>
+                    <span style={{ color: '#8e9299', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{format(msg.timestamp, 'HH:mm')}</span>
                   </div>
-                  <div className="flex-1 h-px bg-[#1a1b2e]" />
+                  <div style={{ flex: 1, height: 1, background: '#262736' }} />
                 </div>
               )
             }
 
-            const avatarColor = isUser ? '#3b82f6' : (member?.avatar || '#6366f1')
+            const avatarColor = isUser ? '#4285f4' : (member?.avatar || '#6366f1')
             const avatarLabel = isUser ? '我' : (msg.senderName?.[0]?.toUpperCase() || 'A')
 
             return (
-              <div key={msg.id} className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
-                <Avatar className="h-7 w-7 shrink-0 mt-1.5 ring-2 ring-white shadow-sm">
-                  <AvatarFallback style={{ backgroundColor: avatarColor }} className="text-white text-[11px] font-bold">
-                    {avatarLabel}
-                  </AvatarFallback>
-                </Avatar>
-                <div className={`max-w-[78%] flex flex-col gap-0.5 ${isUser ? 'items-end' : 'items-start'}`}>
-                  <div className={`flex items-center gap-1.5 text-[11px] text-white/30 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-                    <span className="font-medium">{msg.senderName}</span>
-                    <span className="tabular-nums">{format(msg.timestamp, 'HH:mm')}</span>
+              <div key={msg.id} style={{ display: 'flex', gap: 10, flexDirection: isUser ? 'row-reverse' : 'row', padding: '2px 0' }}>
+                {/* Avatar */}
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: avatarColor,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#fff',
+                    flexShrink: 0,
+                    marginTop: 6,
+                  }}
+                >
+                  {avatarLabel}
+                </div>
+
+                {/* Bubble */}
+                <div style={{ maxWidth: '78%', display: 'flex', flexDirection: 'column', gap: 2, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+                  {/* Sender + time */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#8e9299', padding: '0 4px', flexDirection: isUser ? 'row-reverse' : 'row' }}>
+                    <span style={{ fontWeight: 500 }}>{msg.senderName}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{format(msg.timestamp, 'HH:mm')}</span>
                   </div>
-                  <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
-                    isUser
-                      ? 'bg-blue-500 text-white rounded-tr-sm'
-                      : 'bg-[#1a1b2e] text-white/85 rounded-tl-sm border border-white/[0.07]'
-                  }`}>
+
+                  {/* Message content */}
+                  <div
+                    style={{
+                      borderRadius: isUser ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                      padding: '10px 14px',
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      background: isUser ? '#4285f4' : '#161724',
+                      color: isUser ? '#fff' : 'rgba(232,233,240,0.9)',
+                      border: isUser ? 'none' : `1px solid #262736`,
+                      borderLeft: roleBorderColor ? `4px solid ${roleBorderColor}` : (isUser ? 'none' : '1px solid #262736'),
+                    }}
+                  >
                     {isUser ? (
-                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0 }}>{msg.content}</p>
                     ) : (
                       <MarkdownContent content={msg.content} isUser={false} />
                     )}
                     {isStreaming && <StreamingCursor />}
+
+                    {/* Attachments */}
                     {msg.attachments?.map(att => (
-                      <a key={att.id} href={att.url} target="_blank" rel="noreferrer"
-                        className={`flex items-center gap-1.5 mt-1.5 text-xs underline underline-offset-1 ${isUser ? 'text-blue-100' : 'text-blue-500'}`}>
-                        <Paperclip className="h-3 w-3 shrink-0" />{att.name}
+                      <a
+                        key={att.id}
+                        href={att.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginTop: 6,
+                          fontSize: 12,
+                          color: isUser ? 'rgba(255,255,255,0.8)' : '#4285f4',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 2,
+                        }}
+                      >
+                        <Paperclip style={{ width: 12, height: 12, flexShrink: 0 }} />
+                        {att.name}
                       </a>
                     ))}
                   </div>
@@ -260,57 +366,151 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
             )
           })}
 
-          {(loading || isLoading) && !streamingMessageId && (
-            <div className="flex gap-2.5">
-              <Avatar className="h-7 w-7 shrink-0 mt-1.5 ring-2 ring-white shadow-sm">
-                <AvatarFallback className="bg-[#1a1b2e]">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-white/30" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="bg-[#1a1b2e] border border-white/[0.07] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          {/* Loading dots */}
+          {isBusy && !streamingMessageId && (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#161724', border: '1px solid #262736', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 6 }}>
+                <Loader2 style={{ width: 13, height: 13, color: '#8e9299' }} className="animate-spin" />
+              </div>
+              <div style={{ background: '#161724', border: '1px solid #262736', borderRadius: '4px 16px 16px 16px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#8e9299', display: 'inline-block' }} className="animate-bounce" />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#8e9299', display: 'inline-block', animationDelay: '150ms' }} className="animate-bounce" />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#8e9299', display: 'inline-block', animationDelay: '300ms' }} className="animate-bounce" />
               </div>
             </div>
           )}
+
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
 
+      {/* File preview strip */}
       {files.length > 0 && (
-        <div className="px-4 py-2 flex gap-2 flex-wrap" style={{ background: '#080910', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '8px 16px', background: 'rgba(14,15,26,0.8)', borderTop: '1px solid #262736', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {files.map((f, i) => (
-            <div key={i} className="flex items-center gap-1.5 bg-[#0e0f1a] border rounded-full px-2.5 py-1 text-xs shadow-sm text-white/60">
-              <Paperclip className="h-3 w-3 text-white/30" />
-              <span className="max-w-[160px] truncate">{f.name}</span>
-              <button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-white/20 hover:text-red-400 transition-colors ml-0.5 text-base leading-none">×</button>
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#161724',
+                border: '1px solid #262736',
+                borderRadius: 20,
+                padding: '4px 10px',
+                fontSize: 12,
+                color: '#8e9299',
+              }}
+            >
+              <Paperclip style={{ width: 11, height: 11, color: '#8e9299' }} />
+              <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+              <button
+                onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                style={{ color: '#8e9299', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, fontSize: 14, padding: 0 }}
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>
       )}
 
-      <div className="p-3" style={{ background: '#0e0f1a', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="flex gap-2 items-end max-w-3xl mx-auto">
-          <input ref={fileRef} type="file" multiple className="hidden" onChange={e => setFiles([...files, ...Array.from(e.target.files || [])])} />
-          <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9 text-white/30 hover:text-white/60 rounded-xl" onClick={() => fileRef.current?.click()} title="上传文件">
-            <Paperclip className="h-4 w-4" />
-          </Button>
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onCompositionStart={() => { composingRef.current = true }}
-            onCompositionEnd={e => { composingRef.current = false; setInput((e.target as HTMLTextAreaElement).value) }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder ?? '发送消息... (Enter 发送，Shift+Enter 换行)'}
-            className="min-h-[40px] max-h-[160px] resize-none rounded-xl border-white/10 bg-[#13131e] focus:border-indigo-400/50 transition-colors text-sm text-white/85"
-            rows={1}
-          />
-          <Button size="icon" className="shrink-0 h-9 w-9 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-40 transition-all" onClick={handleSubmit}
-            disabled={loading || isLoading || (!input.trim() && files.length === 0)}>
-            {loading || isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-          </Button>
+      {/* Input area */}
+      <div style={{ padding: 16, background: 'rgba(14,15,26,0.8)', backdropFilter: 'blur(8px)', borderTop: '1px solid #262736' }}>
+        <div style={{ maxWidth: 896, margin: '0 auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              gap: 8,
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid #262736',
+              borderRadius: 16,
+              padding: 8,
+              transition: 'border-color 0.2s',
+            }}
+            onFocus={() => {}}
+          >
+            {/* File attach button */}
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={e => setFiles([...files, ...Array.from(e.target.files || [])])}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              title="上传文件"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#8e9299',
+                flexShrink: 0,
+              }}
+            >
+              <Paperclip style={{ width: 16, height: 16 }} />
+            </button>
+
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onCompositionStart={() => { composingRef.current = true }}
+              onCompositionEnd={e => { composingRef.current = false; setInput((e.target as HTMLTextAreaElement).value) }}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder ?? '发送消息... (Enter 发送，Shift+Enter 换行)'}
+              rows={1}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                fontSize: 14,
+                color: '#e8e9f0',
+                lineHeight: 1.6,
+                minHeight: 32,
+                maxHeight: 160,
+                padding: '4px 0',
+              }}
+            />
+
+            {/* Send button */}
+            <button
+              onClick={handleSubmit}
+              disabled={isBusy || (!input.trim() && files.length === 0)}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                border: 'none',
+                cursor: (isBusy || !hasContent) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: hasContent && !isBusy ? '#4285f4' : 'transparent',
+                color: hasContent && !isBusy ? '#fff' : '#8e9299',
+                flexShrink: 0,
+                transition: 'background 0.2s, color 0.2s',
+              }}
+            >
+              {isBusy ? (
+                <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" />
+              ) : (
+                <Send style={{ width: 15, height: 15 }} />
+              )}
+            </button>
+          </div>
+          <p style={{ fontSize: 10, color: '#8e9299', textAlign: 'center', marginTop: 6 }}>Shift+Enter 换行</p>
         </div>
       </div>
     </div>

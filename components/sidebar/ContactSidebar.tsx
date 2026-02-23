@@ -1,225 +1,248 @@
 "use client"
 import { useState } from 'react'
 import { useAppStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ChevronDown, ChevronRight, Plus, Users } from 'lucide-react'
-import { AIFriend, Group, Conversation } from '@/lib/types'
+import { Search, Users, User, Plus, ChevronDown, ChevronRight } from 'lucide-react'
 
-interface ContactSidebarProps {
-  activeConversationId?: string | null
-  onSelectConversation?: (id: string) => void
-  onSelectGroup?: (id: string) => void
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(' ')
 }
 
-export function ContactSidebar({ activeConversationId, onSelectConversation, onSelectGroup }: ContactSidebarProps) {
+export function ContactSidebar() {
   const {
-    friends,
-    groups,
-    conversations,
-    addConversation,
-    getConversationsByFriend,
-    setActiveConversation,
-    setActiveView,
+    friends, groups, conversations,
+    activeConversationId, activeGroupId,
+    setActiveConversation, setActiveGroup, setActiveView,
+    addConversation, getConversationsByFriend,
   } = useAppStore()
 
-  const [expandedFriends, setExpandedFriends] = useState<Set<string>>(new Set(friends.map(f => f.id).slice(0, 1)))
-  const [newConversationName, setNewConversationName] = useState('')
-  const [isAddingConversation, setIsAddingConversation] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [expandedFriends, setExpandedFriends] = useState<Record<string, boolean>>({})
 
-  const toggleFriendExpanded = (friendId: string) => {
-    const next = new Set(expandedFriends)
-    if (next.has(friendId)) {
-      next.delete(friendId)
+  const toggleFriend = (id: string) => {
+    setExpandedFriends(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const filteredFriends = friends.filter(f =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  const filteredGroups = groups.filter(g =>
+    g.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const getFriendConversations = (friendId: string) => {
+    return conversations.filter(c => c.friendId === friendId)
+  }
+
+  const getLastMessage = (friendId: string) => {
+    const convs = getFriendConversations(friendId)
+    if (convs.length === 0) return '点击开始对话'
+    const last = convs.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0]
+    if (last.messages.length === 0) return '新对话'
+    const lastMsg = last.messages[last.messages.length - 1]
+    return lastMsg.content.slice(0, 30)
+  }
+
+  const handleFriendClick = (friendId: string) => {
+    const convs = getFriendConversations(friendId)
+    if (convs.length === 0) {
+      const id = addConversation(friendId, '默认对话')
+      setActiveConversation(id)
+      setActiveGroup(null)
+      setActiveView('main')
+    } else if (convs.length === 1) {
+      setActiveConversation(convs[0].id)
+      setActiveGroup(null)
+      setActiveView('main')
     } else {
-      next.add(friendId)
-    }
-    setExpandedFriends(next)
-  }
-
-  const handleAddConversation = (friendId: string) => {
-    if (newConversationName.trim()) {
-      addConversation(friendId, newConversationName)
-      setNewConversationName('')
-      setIsAddingConversation(null)
+      toggleFriend(friendId)
     }
   }
 
-  const handleSelectConversation = (conversationId: string) => {
-    setActiveConversation(conversationId)
+  const handleSelectConversation = (convId: string) => {
+    setActiveConversation(convId)
+    setActiveGroup(null)
     setActiveView('main')
-    onSelectConversation?.(conversationId)
   }
 
   const handleSelectGroup = (groupId: string) => {
+    setActiveGroup(groupId)
+    setActiveConversation(null)
     setActiveView('main')
-    onSelectGroup?.(groupId)
-  }
-
-  // One-click chat: if friend has no conversations auto-create one
-  const handleFriendClick = (friend: AIFriend) => {
-    const friendConversations = getConversationsByFriend(friend.id)
-    if (friendConversations.length === 0) {
-      const newId = addConversation(friend.id, '默认对话')
-      setActiveView('main')
-      onSelectConversation?.(newId)
-    } else if (friendConversations.length === 1) {
-      // Only one conv, open it directly
-      handleSelectConversation(friendConversations[0].id)
-    } else {
-      toggleFriendExpanded(friend.id)
-    }
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#13131e] border-r border-white/10 w-64">
-      {/* Header */}
-      <div className="p-4 border-b flex items-center justify-between">
-        <h2 className="font-semibold text-sm text-white/75">联系人</h2>
+    <div style={{ width: 240, background: '#0e0f1a', borderRight: '1px solid #262736' }}
+      className="h-full flex flex-col overflow-hidden shrink-0">
+
+      {/* Search */}
+      <div className="p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#8e9299' }} />
+          <input
+            type="text"
+            placeholder="搜索..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%', background: 'rgba(255,255,255,0.05)',
+              border: '1px solid #262736', borderRadius: 8,
+              padding: '8px 12px 8px 36px', fontSize: 13, color: '#fff', outline: 'none',
+            }}
+            onFocus={e => (e.target.style.borderColor = '#4285f4')}
+            onBlur={e => (e.target.style.borderColor = '#262736')}
+          />
+        </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {/* Friends Section */}
-          {friends.length > 0 && (
-            <div>
-              <div className="text-xs font-semibold text-white/40 px-2 py-2 uppercase">好友</div>
-              {friends.map(friend => {
-                const friendConversations = getConversationsByFriend(friend.id)
-                const isExpanded = expandedFriends.has(friend.id)
+      <div className="flex-1 overflow-y-auto px-2 space-y-6 pb-4">
+        {/* Friends */}
+        {filteredFriends.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-2 mb-2">
+              <h3 style={{ fontSize: 11, fontWeight: 600, color: '#8e9299', letterSpacing: '0.08em', textTransform: 'uppercase' }}>好友</h3>
+              <button
+                onClick={() => setActiveView('settings')}
+                className="p-1 rounded transition-colors hover:bg-white/5"
+                style={{ color: '#8e9299' }}
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
 
+            <div className="space-y-1">
+              {filteredFriends.map(friend => {
+                const convs = getFriendConversations(friend.id)
+                const isExpanded = expandedFriends[friend.id]
                 return (
                   <div key={friend.id}>
-                    {/* Friend Item */}
-                    <button
-                      onClick={() => handleFriendClick(friend)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#252636] transition-colors text-left group"
+                    <div
+                      className={cn('sidebar-item group', isExpanded && 'bg-white/5')}
+                      onClick={() => handleFriendClick(friend.id)}
                     >
-                      <div className="flex items-center gap-2 flex-1">
-                        {friendConversations.length > 1 && (
-                          <span className="w-4 h-4 flex items-center justify-center text-white/60">
-                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                          </span>
-                        )}
-                        {friendConversations.length <= 1 && <div className="w-4" />}
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback style={{ backgroundColor: friend.avatar }} className="text-white text-xs font-bold">
-                            {friend.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-white/75 truncate">{friend.name}</p>
-                          <p className="text-xs text-white/30 truncate">
-                            {friendConversations.length === 0 ? <span className="text-blue-400">点击开始对话</span> : friend.role === 'chief' ? '主工程师' : '功能工程师'}
-                          </p>
-                        </div>
+                      <div
+                        className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-xs"
+                        style={{ backgroundColor: friend.avatar }}
+                      >
+                        {friend.name[0]}
                       </div>
-                      {isExpanded && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setIsAddingConversation(friend.id)
-                          }}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium truncate">{friend.name}</span>
+                          {convs.length > 1 && (
+                            isExpanded
+                              ? <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: '#8e9299' }} />
+                              : <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ color: '#8e9299' }} />
+                          )}
+                        </div>
+                        <p className="text-xs truncate" style={{ color: '#8e9299' }}>{getLastMessage(friend.id)}</p>
+                      </div>
+                    </div>
 
-                    {/* Conversations under friend */}
-                    {isExpanded && friendConversations.length > 0 && (
-                      <div className="ml-6 space-y-0.5 mb-1">
-                        {friendConversations.map(conv => (
-                          <button
+                    {isExpanded && convs.length > 0 && (
+                      <div className="ml-11 mt-1 space-y-1">
+                        {convs.map(conv => (
+                          <div
                             key={conv.id}
                             onClick={() => handleSelectConversation(conv.id)}
-                            className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
-                              activeConversationId === conv.id
-                                ? 'bg-indigo-500/20 text-indigo-300 font-medium'
-                                : 'text-white/60 hover:bg-[#252636]'
-                            }`}
+                            className="px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors"
+                            style={{
+                              background: activeConversationId === conv.id ? 'rgba(66,133,244,0.2)' : 'transparent',
+                              color: activeConversationId === conv.id ? '#4285f4' : '#8e9299',
+                            }}
+                            onMouseEnter={e => {
+                              if (activeConversationId !== conv.id)
+                                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'
+                            }}
+                            onMouseLeave={e => {
+                              if (activeConversationId !== conv.id)
+                                (e.currentTarget as HTMLElement).style.background = 'transparent'
+                            }}
                           >
-                            <p className="truncate">💬 {conv.name}</p>
-                          </button>
+                            {conv.name}
+                          </div>
                         ))}
-                      </div>
-                    )}
-
-                    {/* Add conversation input */}
-                    {isAddingConversation === friend.id && (
-                      <div className="ml-6 p-1.5 mb-1 space-y-1 bg-[#0e0f1a] rounded border border-blue-200">
-                        <Input
-                          placeholder="对话名称..."
-                          value={newConversationName}
-                          onChange={(e) => setNewConversationName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddConversation(friend.id)
-                            if (e.key === 'Escape') setIsAddingConversation(null)
+                        <button
+                          className="w-full text-left px-3 py-1.5 rounded-md text-xs transition-colors flex items-center gap-2"
+                          style={{ color: '#8e9299' }}
+                          onClick={() => {
+                            const id = addConversation(friend.id, `对话 ${convs.length + 1}`)
+                            handleSelectConversation(id)
                           }}
-                          className="h-7 text-xs"
-                          autoFocus
-                        />
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            className="h-6 text-xs flex-1"
-                            onClick={() => handleAddConversation(friend.id)}
-                          >
-                            添加
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 text-xs flex-1"
-                            onClick={() => setIsAddingConversation(null)}
-                          >
-                            取消
-                          </Button>
-                        </div>
+                        >
+                          <Plus className="w-3 h-3" /> 新建对话
+                        </button>
                       </div>
                     )}
                   </div>
                 )
               })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Groups Section */}
-          {groups.length > 0 && (
-            <div className="mt-3">
-              <div className="text-xs font-semibold text-white/40 px-2 py-2 uppercase">群组</div>
-              {groups.map(group => (
-                <button
+        {/* Groups */}
+        {filteredGroups.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-2 mb-2">
+              <h3 style={{ fontSize: 11, fontWeight: 600, color: '#8e9299', letterSpacing: '0.08em', textTransform: 'uppercase' }}>群组</h3>
+            </div>
+            <div className="space-y-1">
+              {filteredGroups.map(group => (
+                <div
                   key={group.id}
+                  className={cn('sidebar-item', activeGroupId === group.id && 'sidebar-item-active')}
                   onClick={() => handleSelectGroup(group.id)}
-                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-[#252636] transition-colors group"
                 >
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-white/40 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-white/75 truncate">{group.name}</p>
-                      <p className="text-xs text-white/30">{group.members.length} 人</p>
+                  <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
+                    style={{ background: 'rgba(255,255,255,0.1)' }}>
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium truncate">{group.name}</span>
+                      <span style={{ fontSize: 10, color: '#8e9299' }}>{group.members.length}</span>
+                    </div>
+                    <div className="flex gap-1 mt-0.5">
+                      {group.members.slice(0, 4).map((m, i) => {
+                        const f = friends.find(fr => fr.id === m.friendId)
+                        return (
+                          <div
+                            key={i}
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: f?.avatar || '#ccc', border: '1px solid #0e0f1a' }}
+                            title={f?.name}
+                          />
+                        )
+                      })}
                     </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Empty state */}
-          {friends.length === 0 && groups.length === 0 && (
-            <div className="text-center py-8 text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-              <Users className="h-6 w-6 mx-auto mb-2" style={{ color: 'rgba(255,255,255,0.15)' }} />
-              没有联系人，请先添加好友或创建群组
-            </div>
-          )}
+        {filteredFriends.length === 0 && filteredGroups.length === 0 && (
+          <div className="text-center py-8" style={{ color: '#8e9299', fontSize: 13 }}>
+            <Users className="w-8 h-8 mx-auto mb-2 opacity-20" />
+            没有联系人
+          </div>
+        )}
+      </div>
+
+      {/* Bottom: Settings */}
+      <div className="p-3" style={{ borderTop: '1px solid #262736' }}>
+        <div className="sidebar-item" onClick={() => setActiveView('settings')}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ background: '#4285f4' }}>
+            <User className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-medium block truncate">用户设置</span>
+            <span className="text-xs block truncate" style={{ color: '#8e9299' }}>API Keys & 配置</span>
+          </div>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }
