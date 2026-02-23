@@ -201,7 +201,7 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       <ScrollArea className="flex-1 min-h-0 p-4">
-        <div className="space-y-4 max-w-3xl mx-auto">
+        <div className="space-y-2 max-w-3xl mx-auto">
           {messages.length === 0 && (
             <div className="text-center text-gray-400 py-16 text-sm">
               <div className="text-4xl mb-3">💬</div>
@@ -213,20 +213,18 @@ export function ChatArea({ messages, onSendMessage, members, placeholder, isLoad
             const isSandbox = msg.senderId === 'system'
             const member = members?.find(m => m.id === msg.senderId)
 
-            // Sandbox execution result: center-aligned system message
+            // System / tool activity: compact inline strip
             if (isSandbox) {
               return (
-                <div key={msg.id} className="flex justify-center">
-                  <div className="max-w-[85%] rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-600 overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
-                      <Terminal className="h-3 w-3 text-gray-500" />
-                      <span className="font-medium text-gray-500">{msg.senderName}</span>
-                      <span className="text-gray-400">{format(msg.timestamp, 'HH:mm')}</span>
-                    </div>
-                    <div className="px-3 py-2">
-                      <MessageContent content={msg.content} />
-                    </div>
+                <div key={msg.id} className="flex items-center justify-center gap-2 py-0.5">
+                  <div className="flex-1 h-px bg-gray-100" />
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-400 shrink-0 max-w-[70%]">
+                    <span className="font-medium text-gray-500">{msg.senderName}</span>
+                    <span className="text-gray-300">·</span>
+                    <span className="truncate">{msg.content}</span>
+                    <span className="text-gray-300 shrink-0">{format(msg.timestamp, 'HH:mm')}</span>
                   </div>
+                  <div className="flex-1 h-px bg-gray-100" />
                 </div>
               )
             }

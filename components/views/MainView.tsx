@@ -51,6 +51,13 @@ export function MainView() {
   ) => {
     const taskId = addTask({ title: `${member.name} 🤖 Agent 运行中`, description: task.slice(0, 40), status: 'running' })
 
+    // 在聊天里告诉用户这个 Agent 开始工作了
+    addMessage(groupId, {
+      role: 'assistant',
+      content: `🤖 正在执行任务，请稍候...`,
+      senderId: member.id, senderName: member.name
+    })
+
     // Get the member's role card in this group (if assigned)
     const memberInGroup = selectedGroup?.members.find(m => m.friendId === member.id)
     const roleCard = memberInGroup?.roleCardId ? roleCards.find(c => c.id === memberInGroup.roleCardId) : null
@@ -99,8 +106,13 @@ export function MainView() {
       updateTask(taskId, { status: 'done', result: 'Agent 完成' })
       addLog({ level: 'success', message: `${member.name} Agent 任务完成` })
     } catch (e) {
-      updateTask(taskId, { status: 'failed', result: String(e) })
-      addLog({ level: 'error', message: `${member.name} Agent 异常: ${String(e)}` })
+      const msg = String(e)
+      addMessage(groupId, {
+        role: 'assistant', content: `❌ 执行异常：${msg}`,
+        senderId: member.id, senderName: member.name
+      })
+      updateTask(taskId, { status: 'failed', result: msg })
+      addLog({ level: 'error', message: `${member.name} Agent 异常: ${msg}` })
     }
   }
 
@@ -114,7 +126,6 @@ export function MainView() {
     const { type } = event
 
     if (type === 'message') {
-      // AI said something (strip XML tags for display)
       const display = (event.display as string) || (event.content as string) || ''
       if (display.trim()) {
         addMessage(groupId, {
@@ -122,31 +133,33 @@ export function MainView() {
           senderId: member.id, senderName: member.name
         })
         history.push({ role: 'assistant', content: display })
-        addLog({ level: 'info', message: `${member.name}: ${display.slice(0, 60)}...` })
       }
     } else if (type === 'tool_call') {
+      // 在聊天里显示轻量操作标签，让用户看到进度
       const tool = event.tool as string
-      const args = event.args as Record<string, string>
-      let label = `🔧 调用工具: ${tool}`
-      if (tool === 'execute_code') label = `⚙️ 执行 ${args.language} 代码`
-      else if (tool === 'write_file') label = `📝 写入文件: ${args.path}`
-      else if (tool === 'read_file') label = `📖 读取文件: ${args.path}`
-      else if (tool === 'shell') label = `💻 Shell: ${args.cmd?.slice(0, 50)}`
+      const args = (event.args as Record<string, string>) || {}
+      let label =
+        tool === 'execute_code' ? `⚙️ 执行 ${args.language || ''} 代码` :
+        tool === 'write_file'   ? `📝 写入文件 \`${args.path}\`` :
+        tool === 'read_file'    ? `📖 读取文件 \`${args.path}\`` :
+        tool === 'shell'        ? `💻 \`${(args.command || args.cmd || '').slice(0, 60)}\`` :
+        `🔧 ${tool}`
+      addMessage(groupId, {
+        role: 'assistant', content: label,
+        senderId: 'system', senderName: member.name
+      })
       addLog({ level: 'info', message: `${member.name} → ${label}` })
     } else if (type === 'tool_result') {
-      const tool = event.tool as string
+      // 工具结果只写日志和 history，不刷屏聊天
       const result = (event.result as string) || ''
-      // Post tool results as sandbox messages so other AIs can see
-      const content = `\`\`\`\n${result.slice(0, 2000)}${result.length > 2000 ? '\n...(已截断)' : ''}\n\`\`\``
-      addMessage(groupId, {
-        role: 'assistant', content,
-        senderId: 'system', senderName: `🖥️ ${tool}`
-      })
       history.push({ role: 'assistant', content: result })
-      addLog({ level: result.startsWith('❌') ? 'error' : 'success', message: `工具结果: ${result.slice(0, 80)}` })
+      addLog({
+        level: result.startsWith('❌') ? 'error' : 'success',
+        message: `[${event.tool}] ${result.slice(0, 120)}${result.length > 120 ? '...' : ''}`
+      })
     } else if (type === 'done') {
-      const summary = event.summary as string
-      if (summary && summary.trim()) {
+      const summary = (event.summary as string) || ''
+      if (summary.trim()) {
         addMessage(groupId, {
           role: 'assistant', content: `✅ **任务完成**\n\n${summary}`,
           senderId: member.id, senderName: member.name
@@ -154,7 +167,12 @@ export function MainView() {
         history.push({ role: 'assistant', content: summary })
       }
     } else if (type === 'error') {
-      addLog({ level: 'error', message: `${member.name} 错误: ${event.message}` })
+      const errMsg = (event.message || event.error || '未知错误') as string
+      addMessage(groupId, {
+        role: 'assistant', content: `❌ ${errMsg}`,
+        senderId: member.id, senderName: member.name
+      })
+      addLog({ level: 'error', message: `${member.name} 错误: ${errMsg}` })
     } else if (type === 'thinking') {
       addLog({ level: 'info', message: `${member.name} 思考中 (第 ${event.iteration} 轮)...` })
     }
