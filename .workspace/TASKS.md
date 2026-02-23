@@ -235,10 +235,32 @@ addConversationMessage(convId, message): void
 
 ---
 
-### [ ] BUG-FIX 已知 bug 修复（先做，再做 TASK-3）
+### [x] BUG-FIX 已知 bug 修复（先做，再做 TASK-3）
 优先级：P0（阻塞后续功能）
+完成时间：2026-02-23
+Commit：5e4f1cb
 
 > 这 3 个 bug 是 Claude 审查代码时发现的，必须修复后才能继续。
+
+**完成情况：✅**
+
+实现完成：
+1. ✅ BUG-1：MainLayout.tsx — ContactSidebar 的回调修复
+   - 实现 handleSelectGroup：setActiveGroup + setActiveConversation(null) + setActiveView('main')
+   - 实现 handleSelectConversation：setActiveConversation
+   - 替换空回调函数为实际处理逻辑
+
+2. ✅ BUG-2：FriendChatView.tsx — SSE 流式解析修复
+   - 改用标准 SSE 解析模式（按 \n\n 分割事件块）
+   - 修复 buffer 累积和残留处理逻辑
+   - 防止消息重复和丢失
+
+3. ✅ BUG-3：FriendChatView.tsx — 普通聊天 AI 回复
+   - 非 /agent 消息调用 /api/chat 获取 AI 回复
+   - 支持普通对话模式（非 Agent 工具调用模式）
+   - history 正确传递给 AI
+
+编译验证：✅ npm run build 成功（包含在 commit 5e4f1cb 中）
 
 ---
 
@@ -400,15 +422,17 @@ fix: BUG-1/2/3 修复侧边栏路由、SSE解析、1:1对话回复
 
 ---
 
-### [~] TASK-3 角色卡牌系统
+### [x] TASK-3 角色卡牌系统
 优先级：P1（BUG-FIX 完成后做）
 开始时间：2026-02-23
+完成时间：2026-02-23
+Commit：4444ba2 (TASK-3-A/B), 5e4f1cb (TASK-3-C/D)
 
 **已完成：**
 - ✅ TASK-3-A：RoleCard 类型 + 内置卡牌库（Commit：4444ba2）
 - ✅ TASK-3-B：store.ts roleCards CRUD（Commit：4444ba2）
-
-**待完成：TASK-3-C + TASK-3-D**
+- ✅ TASK-3-C：群组成员角色分配 UI（Commit：5e4f1cb）
+- ✅ TASK-3-D：Agent 调用注入角色 system prompt（Commit：5e4f1cb）
 
 ---
 
@@ -605,14 +629,39 @@ feat: TASK-3-C/D 角色卡牌分配 UI + Agent 注入
 
 ---
 
-### [ ] TASK-4 记忆系统
+### [x] TASK-4 记忆系统
 优先级：P1（TASK-3 完成后做）
+完成时间：2026-02-23
+Commit：5e4f1cb
 
 **目标效果：**
 - 好友对话里说"记住这个：我喜欢用 TypeScript 写后端" → AI 确认已记住，存入该好友的记忆库
 - 下次新对话或群聊里说"你还记得我的技术栈偏好吗" → AI 能调取并回答
 - 聊天记录默认永久保存，用户可手动删除
 - 记忆跨对话框共享（同一好友的所有对话框共用一个记忆库）
+
+**完成情况：✅**
+
+实现完成：
+1. ✅ TASK-4-A：Memory 类型 + store（lib/types.ts + lib/store.ts）
+   - Memory 接口定义（id, friendId, content, summary, tags, source, createdAt）
+   - Store 方法：addMemory, deleteMemory, getMemoriesByFriend, searchMemories
+
+2. ✅ TASK-4-B：记忆触发检测（关键词匹配逻辑）
+   - REMEMBER_TRIGGERS 和 RECALL_TRIGGERS 常量
+   - shouldRemember 和 shouldRecall 检测函数
+
+3. ✅ TASK-4-C：FriendChatView 集成记忆（components/views/FriendChatView.tsx）
+   - onSendMessage 中集成记忆触发逻辑
+   - 存记忆流程：检测关键词 → 提取内容 → addMemory → AI 确认
+   - 调记忆流程：检测关键词 → searchMemories → 注入 system prompt
+
+4. ✅ TASK-4-D：记忆管理 UI（components/views/SettingsView.tsx）
+   - 设置页面新增"记忆管理"区块
+   - 按好友分组展示记忆列表
+   - 单条删除和清空全部功能
+
+编译验证：✅ npm run build 成功（包含在 commit 5e4f1cb 中）
 
 ---
 
