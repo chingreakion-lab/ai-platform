@@ -170,29 +170,139 @@ export function MainView() {
           if (data.url) {
             attachments.push({ id: uuidv4(), name: file.name, url: data.url, type: file.type, size: file.size })
           }
-        } catch (e) {
+        } catch {
           addLog({ level: 'error', message: `文件上传失败: ${file.name}` })
         }
       }
     }
 
-    // Add user message
+    // Add user message to group
     addMessage(selectedGroup.id, {
       role: 'user', content, senderId: 'user', senderName: '我',
       attachments: attachments.length > 0 ? attachments : undefined
     })
-    addLog({ level: 'info', message: `用户任务: ${content.slice(0, 60)}` })
+    addLog({ level: 'info', message: `用户指令: ${content.slice(0, 60)}` })
 
-    // Build shared conversation history
-    const history = selectedGroup.messages.map(m => ({ role: m.role as 'user'|'assistant', content: m.content }))
-    history.push({ role: 'user', content })
-
-    // Run each member as an autonomous agent (sequentially so they can see each other's output)
-    for (const member of groupMembers) {
-      await runAgentMember(member, selectedGroup.id, content, history)
+    // Find role assignments
+    const getRoleMember = (roleName: string) => {
+      const gm = selectedGroup.members.find(m => {
+        const card = roleCards.find(c => c.id === m.roleCardId)
+        return card?.name === roleName
+      })
+      if (!gm) return null
+      const friend = friends.find(f => f.id === gm.friendId)
+      const card = roleCards.find(c => c.id === gm.roleCardId)
+      return friend && card ? { ...friend, systemPrompt: card.systemPrompt } : null
     }
 
-    setIsLoading(false)
+    const supervisorMember = getRoleMember('监工')
+    const frontendMember = getRoleMember('前端')
+    const backendMember = getRoleMember('后端')
+
+    // If no supervisor assigned, fall back to sequential agent mode (legacy)
+    if (!supervisorMember) {
+      addMessage(selectedGroup.id, {
+        role: 'assistant', content: '⚠️ 当前群组没有分配【监工】角色。请在成员头像上点击分配角色后再试。\n\n点击群聊顶部的成员名字，选择角色卡牌。',
+        senderId: 'system', senderName: '系统'
+      })
+      setIsLoading(false)
+      return
+    }
+
+    // Use orchestration API
+    const taskId = addTask({ title: '监工协调中', description: content.slice(0, 40), status: 'running' })
+
+    try {
+      const res = await fetch('/api/orchestrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userInstruction: content,
+          groupAnnouncement: selectedGroup.announcement || '',
+          supervisor: {
+            provider: supervisorMember.provider,
+            model: supervisorMember.model,
+            apiKey: supervisorMember.apiKey,
+            systemPrompt: supervisorMember.systemPrompt,
+          },
+          frontend: frontendMember ? {
+            provider: frontendMember.provider,
+            model: frontendMember.model,
+            apiKey: frontendMember.apiKey,
+            systemPrompt: frontendMember.systemPrompt,
+          } : null,
+          backend: backendMember ? {
+            provider: backendMember.provider,
+            model: backendMember.model,
+            apiKey: backendMember.apiKey,
+            systemPrompt: backendMember.systemPrompt,
+          } : null,
+          maxRounds: 3,
+        }),
+      })
+
+      if (!res.body) throw new Error('No response stream')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const events = buf.split('\n\n')
+        buf = events.pop() ?? ''
+
+        for (const event of events) {
+          const dataLine = event.split('\n').find(l => l.startsWith('data:'))
+          if (!dataLine) continue
+          try {
+            const data = JSON.parse(dataLine.slice(5).trim())
+
+            if (data.type === 'round_start') {
+              addMessage(selectedGroup.id, {
+                role: 'assistant',
+                content: `─── 第 ${data.round} 轮协作 ───`,
+                senderId: 'system', senderName: '系统'
+              })
+            } else if (data.type === 'agent_start') {
+              addLog({ level: 'info', message: `${data.agent}：${data.action}` })
+            } else if (data.type === 'agent_message') {
+              const agentName = data.agent as string
+              const member = agentName === '监工' ? supervisorMember
+                : agentName === '前端' ? frontendMember
+                : backendMember
+              if (member && data.content?.trim()) {
+                addMessage(selectedGroup.id, {
+                  role: 'assistant',
+                  content: data.content,
+                  senderId: member.id,
+                  senderName: `${agentName} · ${member.name}`,
+                })
+              }
+            } else if (data.type === 'done') {
+              updateTask(taskId, { status: 'done', result: '完成' })
+              addLog({ level: 'success', message: '所有工作完成' })
+            } else if (data.type === 'error') {
+              updateTask(taskId, { status: 'failed', result: data.message })
+              addMessage(selectedGroup.id, {
+                role: 'assistant', content: `❌ ${data.message}`,
+                senderId: 'system', senderName: '系统'
+              })
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '未知错误'
+      updateTask(taskId, { status: 'failed', result: msg })
+      addMessage(selectedGroup.id, {
+        role: 'assistant', content: `❌ 协作失败：${msg}`,
+        senderId: 'system', senderName: '系统'
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSaveAnnouncement = () => {
