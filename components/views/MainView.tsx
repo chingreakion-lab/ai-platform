@@ -15,8 +15,9 @@ import { Group, Message, AIFriend, Attachment } from '@/lib/types'
 import { v4 as uuidv4 } from 'uuid'
 
 export function MainView() {
-  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, updateGroupMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView, roleCards, updateGroupMemberRole } = useAppStore()
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, updateGroupMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView, roleCards, updateGroupMemberRole, activeGroupId, setActiveGroup } = useAppStore()
+  const selectedGroupId = activeGroupId
+  const setSelectedGroupId = setActiveGroup
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showAnnouncement, setShowAnnouncement] = useState(false)
   const [showMemberSettings, setShowMemberSettings] = useState(false)
