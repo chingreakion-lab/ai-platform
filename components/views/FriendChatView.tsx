@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Edit, ChevronLeft } from 'lucide-react'
-import { Conversation, AIFriend } from '@/lib/types'
+import { Conversation, AIFriend, Attachment } from '@/lib/types'
+import { v4 as uuidv4 } from 'uuid'
 
 interface FriendChatViewProps {
   conversation: Conversation
@@ -26,6 +27,7 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
     renameConversation,
     addLog,
     addTask,
+    updateTask,
     addMemory,
     searchMemories,
   } = useAppStore()
@@ -112,7 +114,6 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
     }
   }
 
-  // BUG-3 fix: normal chat calls /api/chat
   const runChat = async (content: string, systemExtra?: string) => {
     setIsLoading(true)
     try {
@@ -139,6 +140,11 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
         attachments: [],
       })
     } catch (err) {
+      const msg = err instanceof Error ? err.message : '未知错误'
+      addConversationMessage(conversation.id, {
+        role: 'assistant', content: `❌ 回复失败：${msg}`,
+        senderId: friend.id, senderName: friend.name, attachments: [],
+      })
       addLog({ level: 'error', message: `${friend.name} 回复失败` })
     } finally {
       setIsLoading(false)
@@ -152,9 +158,27 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
     setIsRenaming(false)
   }
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, files?: File[]) => {
     const isAgentMode = content.startsWith('/agent ')
     const actualContent = isAgentMode ? content.slice(7).trim() : content
+
+    // 上传附件到 R2
+    let attachments: Attachment[] = []
+    if (files && files.length > 0) {
+      for (const file of files) {
+        try {
+          const fd = new FormData()
+          fd.append('file', file)
+          const res = await fetch('/api/upload', { method: 'POST', body: fd })
+          const data = await res.json()
+          if (data.url) {
+            attachments.push({ id: uuidv4(), name: file.name, url: data.url, type: file.type, size: file.size })
+          }
+        } catch {
+          addLog({ level: 'error', message: `文件上传失败: ${file.name}` })
+        }
+      }
+    }
 
     // Handle memory: store
     if (!isAgentMode && shouldRemember(actualContent)) {
@@ -187,7 +211,8 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
     // Store user message
     addConversationMessage(conversation.id, {
       role: 'user', content: actualContent,
-      senderId: 'user', senderName: '你', attachments: [],
+      senderId: 'user', senderName: '你',
+      attachments: attachments.length > 0 ? attachments : undefined,
     })
 
     if (isAgentMode) {

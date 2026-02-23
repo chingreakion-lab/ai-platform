@@ -96,7 +96,7 @@ export function ContactSidebar({ activeConversationId, onSelectConversation, onS
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-700 truncate">{friend.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{friend.role}</p>
+                          <p className="text-xs text-gray-400 truncate">{friend.role === 'chief' ? '主工程师' : '功能工程师'}</p>
                         </div>
                       </div>
                       {isExpanded && (

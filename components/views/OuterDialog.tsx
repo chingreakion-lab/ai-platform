@@ -39,8 +39,10 @@ export function OuterDialog() {
         addLog({ level: 'error', message: `${chief.name} 回复失败: ${data.error}` })
       }
     } catch (e) {
-      updateTask(taskId, { status: 'failed', result: String(e) })
-      addLog({ level: 'error', message: `请求异常: ${String(e)}` })
+      const msg = String(e)
+      addOuterMessage({ role: 'assistant', content: `❌ 请求异常：${msg}`, senderId: chief.id, senderName: chief.name })
+      updateTask(taskId, { status: 'failed', result: msg })
+      addLog({ level: 'error', message: `请求异常: ${msg}` })
     }
     setIsLoading(false)
   }

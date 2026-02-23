@@ -1,5 +1,5 @@
 "use client"
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Trash2, Edit2, Bot, Database, Shield, Eye } from 'lucide-react'
+import { Plus, Trash2, Edit2, Bot, Database, Shield, Eye, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { AIFriend, AIProvider } from '@/lib/types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -22,7 +22,24 @@ const defaultForm = { name: '', provider: 'xai' as AIProvider, model: 'grok-3', 
 
 export function SettingsView() {
   const { friends, addFriend, updateFriend, removeFriend, getMemoriesByFriend, deleteMemory } = useAppStore()
+  const [workspaceStatus, setWorkspaceStatus] = useState<{running: boolean; containerName: string; error?: string} | null>(null)
+  const [wsLoading, setWsLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+
+  const fetchWorkspaceStatus = async () => {
+    setWsLoading(true)
+    try {
+      const res = await fetch('/api/workspace?action=status')
+      const data = await res.json()
+      setWorkspaceStatus(data)
+    } catch (e) {
+      setWorkspaceStatus({ running: false, containerName: 'ai-platform-workspace', error: String(e) })
+    } finally {
+      setWsLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchWorkspaceStatus() }, [])
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState({ ...defaultForm })
 
@@ -104,21 +121,40 @@ export function SettingsView() {
             <h2 className="text-sm font-semibold text-gray-800">存储配置 (Cloudflare R2)</h2>
           </div>
           <div className="px-6 py-4 space-y-3">
+            <p className="text-xs text-gray-500">文件上传至 Cloudflare R2，需通过服务器环境变量配置：<code className="bg-gray-100 px-1 rounded text-[11px]">R2_ENDPOINT</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_ACCESS_KEY_ID</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_SECRET_ACCESS_KEY</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_BUCKET</code>、<code className="bg-gray-100 px-1 rounded text-[11px]">R2_PUBLIC_URL</code>。</p>
+            <p className="text-xs text-gray-400">配置完成后附件上传功能自动可用，未配置则上传会报错。</p>
+          </div>
+        </div>
+
+        {/* Workspace Status */}
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-6 py-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-xs text-gray-600">存储服务已配置</span>
+              <Database className="h-5 w-5 text-blue-500" />
+              <h2 className="text-sm font-semibold text-gray-800">代码执行工作区 (Docker)</h2>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-gray-400 mb-1">Bucket</p>
-                <p className="font-mono text-gray-700">ai-platform-files</p>
+            <button onClick={fetchWorkspaceStatus} disabled={wsLoading} className="text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50">
+              <RefreshCw className={`h-4 w-4 ${wsLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          <div className="px-6 py-4">
+            {workspaceStatus === null ? (
+              <div className="flex items-center gap-2 text-xs text-gray-400"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> 检测中...</div>
+            ) : workspaceStatus.running ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="text-xs text-green-700 font-medium">容器运行中</span>
+                <span className="text-xs text-gray-400">· {workspaceStatus.containerName}</span>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-gray-400 mb-1">公开 URL</p>
-                <p className="font-mono text-gray-700 truncate">pub-859de528...r2.dev</p>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-orange-400" />
+                  <span className="text-xs text-orange-600 font-medium">容器未运行 — Agent 执行时自动启动，首次启动约 10–30 秒</span>
+                </div>
+                {workspaceStatus.error && <p className="text-xs text-gray-400 font-mono bg-gray-50 rounded p-2">{workspaceStatus.error}</p>}
               </div>
-            </div>
-            <p className="text-xs text-gray-400">文件上传至 Cloudflare R2，通过公开 URL 访问</p>
+            )}
           </div>
         </div>
 
