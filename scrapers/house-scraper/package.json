@@ -1,0 +1,14 @@
+{
+  "name": "mimap-scraper",
+  "version": "1.0.0",
+  "description": "Itandi BB 拟人化抓取，全程拟人化，只采募集中",
+  "type": "commonjs",
+  "main": "run.js",
+  "scripts": {
+    "run": "node run.js",
+    "list-only": "node list-only.js"
+  },
+  "dependencies": {
+    "playwright": "^1.58.0"
+  }
+}

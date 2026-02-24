@@ -57,16 +57,19 @@ function sseEvent(type: string, payload: object): string {
 // ─── Main agent loop with native function calling ────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const { provider, model, apiKey, agentName, task, history, systemBase } = await req.json()
+  const { provider, model, apiKey, agentName, task, history, systemBase, workspaceType } = await req.json()
+  const isLocal = (workspaceType ?? 'docker') === 'local'
 
-  // 确保工作区容器在运行
-  try {
-    await ensureWorkspaceRunning()
-  } catch (e) {
-    return new Response(
-      `data: ${JSON.stringify({ type: 'error', message: `工作区启动失败: ${String(e)}` })}\n\n`,
-      { status: 500, headers: { 'Content-Type': 'text/event-stream' } }
-    )
+  // 只在 docker 模式下启动容器
+  if (!isLocal) {
+    try {
+      await ensureWorkspaceRunning()
+    } catch (e) {
+      return new Response(
+        `data: ${JSON.stringify({ type: 'error', message: `工作区启动失败: ${String(e)}` })}\n\n`,
+        { status: 500, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    }
   }
 
   const encoder = new TextEncoder()
@@ -74,13 +77,38 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const push = (s: string) => controller.enqueue(encoder.encode(s))
 
-      const systemPrompt = [
-        systemBase || `你是 ${agentName}，一个自主AI工程师。`,
-        '\n你可以使用工具来完成任务：execute_code、write_file、read_file、shell。',
-        '\n当前工作目录: /workspace',
-        '\n重要：你写的文件和执行的命令都在容器内持久化工作区，其他 AI agent 可以共享你的文件和之前安装的依赖。',
-        '\n完成任务后，给出清晰的结论或摘要。',
-      ].join('\n')
+      const systemPrompt = isLocal
+        ? [
+            systemBase || `你是 ${agentName}，一个自主AI工程师，专门负责修改和维护本平台的源代码。`,
+            '\n你可以使用以下工具直接操作用户 Mac 上的本地文件系统：',
+            '- write_local_file：写入本地文件（必须绝对路径，会覆盖原文件，自动创建目录）',
+            '- execute_local_shell：在本地执行 bash 命令（超时30秒，输出最多50KB，默认工作目录 /tmp/ai-platform）',
+            '- read_local_file：读取本地文件内容（只读，必须绝对路径）',
+            '- list_local_dir：列出本地目录结构（只读，必须绝对路径）',
+            '\n平台源代码位于 /tmp/ai-platform/ 目录（Next.js 项目，TypeScript）。',
+            '推荐工作流：',
+            '1. list_local_dir /tmp/ai-platform/[相关目录] 了解文件结构',
+            '2. read_local_file 读取需要修改的文件',
+            '3. write_local_file 写入修改后的完整文件内容',
+            '4. execute_local_shell "npx tsc --noEmit --project /tmp/ai-platform/tsconfig.json" 检查 TypeScript 错误',
+            '\n注意：write_local_file 会覆盖整个文件，请确保写入完整内容，不要只写修改的部分。',
+            '完成后给出清晰总结：修改了哪些文件、做了什么改动、是否验证过。',
+          ].join('\n')
+        : [
+            systemBase || `你是 ${agentName}，一个自主AI工程师。`,
+            '\n你可以使用以下工具来完成任务：',
+            '- execute_code：在容器工作区执行代码（Python/JS/TS/bash等）',
+            '- write_file：在容器工作区写文件',
+            '- read_file：读取容器工作区（/workspace）内的文件',
+            '- shell：在容器工作区执行 shell 命令',
+            '- read_local_file：读取用户 Mac 电脑上的任意本地文件（绝对路径）',
+            '- list_local_dir：列出用户 Mac 电脑上某个目录的文件结构（绝对路径）',
+            '\n当前工作目录: /workspace（容器内）',
+            '\n用户的本地文件：你可以用 read_local_file 读取用户 Mac 上任意路径的文件，如 /Users/mimap/Desktop/project/src/App.tsx。',
+            '先用 list_local_dir 了解目录结构，再用 read_local_file 读取具体文件。',
+            '\n重要：你写的文件和执行的命令都在容器内持久化工作区，其他 AI agent 可以共享你的文件和之前安装的依赖。',
+            '\n完成任务后，给出清晰的结论或摘要。',
+          ].join('\n')
 
       push(sseEvent('start', { agent: agentName, task }))
 
@@ -106,7 +134,7 @@ export async function POST(req: NextRequest) {
               model,
               max_tokens: 4096,
               system: systemPrompt,
-              tools: getClaudeTools(),
+              tools: getClaudeTools(workspaceType ?? 'docker'),
               messages,
             })
 
@@ -172,7 +200,7 @@ export async function POST(req: NextRequest) {
             const response = await openai.chat.completions.create({
               model,
               messages: messages as any,
-              tools: getOpenAITools(),
+              tools: getOpenAITools(workspaceType ?? 'docker'),
               tool_choice: 'auto',
             })
 
@@ -212,7 +240,7 @@ export async function POST(req: NextRequest) {
           const genAI = new GoogleGenerativeAI(apiKey)
           const gemini = genAI.getGenerativeModel({
             model,
-            tools: getGeminiTools(),
+            tools: getGeminiTools(workspaceType ?? 'docker'),
             systemInstruction: systemPrompt,
           })
 

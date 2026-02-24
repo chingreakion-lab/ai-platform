@@ -172,42 +172,59 @@ export async function POST(req: NextRequest) {
         // Parse task assignments
         const assignments = parseSupervisorOutput(supervisorResult.text)
 
-        // ── Frontend agent ──────────────────────────────────────────────────
+        // ── Frontend + Backend agents (parallel) ───────────────────────────
         const frontendTask = assignments.frontend || assignments.rejectFrontend
+        const backendTask = assignments.backend || assignments.rejectBackend
+
+        const agentTasks: Promise<{ key: 'frontend' | 'backend'; text: string; toolsUsed: string[] }>[] = []
+
         if (frontendTask && frontend) {
           push(sse('agent_start', { agent: '前端', action: assignments.rejectFrontend ? '修改返工' : '执行前端任务' }))
-          const frontendResult = await runAgent({
-            provider: frontend.provider,
-            model: frontend.model,
-            apiKey: frontend.apiKey,
-            systemPrompt: frontend.systemPrompt,
-            messages: [
-              ...sharedHistory.filter(m => m.role === 'user').slice(-3),
-              { role: 'user', content: frontendTask },
-            ],
-          })
-          frontendSummary = frontendResult.text
-          push(sse('agent_message', { agent: '前端', content: frontendResult.text, toolsUsed: frontendResult.toolsUsed }))
-          sharedHistory.push({ role: 'assistant', content: `【前端】${frontendResult.text}` })
+          agentTasks.push(
+            runAgent({
+              provider: frontend.provider,
+              model: frontend.model,
+              apiKey: frontend.apiKey,
+              systemPrompt: frontend.systemPrompt,
+              messages: [
+                ...sharedHistory.filter(m => m.role === 'user').slice(-3),
+                { role: 'user', content: frontendTask },
+              ],
+            }).then(r => ({ key: 'frontend' as const, text: r.text, toolsUsed: r.toolsUsed }))
+          )
         }
 
-        // ── Backend agent ───────────────────────────────────────────────────
-        const backendTask = assignments.backend || assignments.rejectBackend
         if (backendTask && backend) {
           push(sse('agent_start', { agent: '后端', action: assignments.rejectBackend ? '修改返工' : '执行后端任务' }))
-          const backendResult = await runAgent({
-            provider: backend.provider,
-            model: backend.model,
-            apiKey: backend.apiKey,
-            systemPrompt: backend.systemPrompt,
-            messages: [
-              ...sharedHistory.filter(m => m.role === 'user').slice(-3),
-              { role: 'user', content: backendTask },
-            ],
-          })
-          backendSummary = backendResult.text
-          push(sse('agent_message', { agent: '后端', content: backendResult.text, toolsUsed: backendResult.toolsUsed }))
-          sharedHistory.push({ role: 'assistant', content: `【后端】${backendResult.text}` })
+          agentTasks.push(
+            runAgent({
+              provider: backend.provider,
+              model: backend.model,
+              apiKey: backend.apiKey,
+              systemPrompt: backend.systemPrompt,
+              messages: [
+                ...sharedHistory.filter(m => m.role === 'user').slice(-3),
+                { role: 'user', content: backendTask },
+              ],
+            }).then(r => ({ key: 'backend' as const, text: r.text, toolsUsed: r.toolsUsed }))
+          )
+        }
+
+        if (agentTasks.length > 1) {
+          push(sse('parallel_start', { count: agentTasks.length }))
+        }
+
+        const parallelResults = await Promise.all(agentTasks)
+        for (const { key, text, toolsUsed } of parallelResults) {
+          if (key === 'frontend') {
+            frontendSummary = text
+            push(sse('agent_message', { agent: '前端', content: text, toolsUsed }))
+            sharedHistory.push({ role: 'assistant', content: `【前端】${text}` })
+          } else {
+            backendSummary = text
+            push(sse('agent_message', { agent: '后端', content: text, toolsUsed }))
+            sharedHistory.push({ role: 'assistant', content: `【后端】${text}` })
+          }
         }
 
         // If no tasks assigned and it's first round, something went wrong

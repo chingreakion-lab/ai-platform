@@ -7,7 +7,7 @@ import { Group, Message, AIFriend, Attachment } from '@/lib/types'
 import { v4 as uuidv4 } from 'uuid'
 
 export function MainView() {
-  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, updateGroupMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView, roleCards, updateGroupMemberRole, activeGroupId, setActiveGroup } = useAppStore()
+  const { friends, groups, featureBoards, createGroup, updateGroup, addMessage, updateGroupMessage, addLog, addTask, updateTask, setActiveBoard, setActiveView, roleCards, updateGroupMemberRole, addGroupMember, removeGroupMember, activeGroupId, setActiveGroup } = useAppStore()
   const selectedGroupId = activeGroupId
   const setSelectedGroupId = setActiveGroup
   const [showCreateGroup, setShowCreateGroup] = useState(false)
@@ -267,6 +267,13 @@ export function MainView() {
                   senderName: `${agentName} · ${member.name}`,
                 })
               }
+            } else if (data.type === 'parallel_start') {
+              addMessage(selectedGroup.id, {
+                role: 'assistant',
+                content: `⚡ 前端与后端并行启动（${data.count} 个 Agent 同时运行）`,
+                senderId: 'system',
+                senderName: '系统',
+              })
             } else if (data.type === 'done') {
               updateTask(taskId, { status: 'done', result: '完成' })
               addLog({ level: 'success', message: '所有工作完成' })
@@ -749,135 +756,154 @@ export function MainView() {
         </div>
       )}
 
-      {/* ── Role Assignment Dialog ── */}
+      {/* ── Member Management Dialog ── */}
       {roleDialogOpen && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 50 }}
-          className="flex items-center justify-center p-4"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) setRoleDialogOpen(false) }}
         >
-          <div style={{ background: '#161724', border: '1px solid #262736', borderRadius: 24, width: '100%', maxWidth: 560 }} className="overflow-hidden shadow-2xl">
-            <div style={{ padding: '24px', borderBottom: '1px solid #262736' }} className="flex items-center justify-between">
+          <div style={{ background: '#161724', border: '1px solid #262736', borderRadius: 20, width: '100%', maxWidth: 540, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #262736', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#e8e9f0' }}>分配角色</h3>
-                <p style={{ color: '#8e9299', fontSize: 13, marginTop: 3 }}>
-                  为 {roleDialogMember?.name || '成员'} 选择角色
-                </p>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#e8e9f0' }}>成员管理</h3>
+                <p style={{ color: '#8e9299', fontSize: 12, marginTop: 2 }}>{selectedGroup?.name} · {groupMembers.length} 名成员</p>
               </div>
-              <button
-                onClick={() => setRoleDialogOpen(false)}
-                style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8e9299', fontSize: 16 }}
-              >
-                <X style={{ width: 16, height: 16 }} />
+              <button onClick={() => setRoleDialogOpen(false)}
+                style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8e9299' }}>
+                <X style={{ width: 15, height: 15 }} />
               </button>
             </div>
 
-            {/* Member tabs */}
-            {groupMembers.length > 1 && (
-              <div style={{ padding: '12px 24px 0', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid #262736', paddingBottom: 12 }}>
-                {groupMembers.map(m => {
-                  const memberInGroup = selectedGroup?.members.find(gm => gm.friendId === m.id)
-                  const roleCard = memberInGroup?.roleCardId ? roleCards.find(r => r.id === memberInGroup.roleCardId) : null
-                  const isActive = roleDialogFriendId === m.id
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setRoleDialogFriendId(m.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '6px 12px',
-                        borderRadius: 20,
-                        border: isActive ? '1px solid #4285f4' : '1px solid #262736',
-                        background: isActive ? 'rgba(66,133,244,0.1)' : 'rgba(255,255,255,0.02)',
-                        color: isActive ? '#4285f4' : '#8e9299',
-                        fontSize: 12,
-                        fontWeight: isActive ? 600 : 400,
-                        cursor: 'pointer',
-                      }}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+
+              {/* ── Current members ── */}
+              <div style={{ padding: '16px 24px 0' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#8e9299', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                  当前成员 ({groupMembers.length})
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {groupMembers.map(member => {
+                    const memberInGroup = selectedGroup?.members.find(gm => gm.friendId === member.id)
+                    const roleCard = memberInGroup?.roleCardId ? roleCards.find(r => r.id === memberInGroup.roleCardId) : null
+                    const isRoleTarget = roleDialogFriendId === member.id
+                    return (
+                      <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid #262736', borderRadius: 12, padding: '10px 12px' }}>
+                        {/* Avatar */}
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: member.avatar, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                          {member.name[0]}
+                        </div>
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#e8e9f0' }}>{member.name}</p>
+                          <p style={{ fontSize: 11, color: '#8e9299' }}>{member.provider} · {member.model}</p>
+                        </div>
+                        {/* Role badge */}
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: roleCard ? 'rgba(66,133,244,0.12)' : 'rgba(255,255,255,0.06)', color: roleCard ? '#4285f4' : '#8e9299', fontWeight: 600, flexShrink: 0 }}>
+                          {roleCard ? `${roleCard.emoji} ${roleCard.name}` : '无角色'}
+                        </span>
+                        {/* Assign role button */}
+                        <button
+                          onClick={() => setRoleDialogFriendId(isRoleTarget ? null : member.id)}
+                          style={{ fontSize: 11, padding: '4px 10px', borderRadius: 8, background: isRoleTarget ? 'rgba(66,133,244,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isRoleTarget ? 'rgba(66,133,244,0.4)' : '#262736'}`, color: isRoleTarget ? '#4285f4' : '#8e9299', cursor: 'pointer', flexShrink: 0 }}
+                        >
+                          角色
+                        </button>
+                        {/* Kick button */}
+                        <button
+                          onClick={() => {
+                            if (!selectedGroup) return
+                            if (groupMembers.length <= 1) { addLog({ level: 'warn', message: '群组至少需要保留 1 名成员' }); return }
+                            removeGroupMember(selectedGroup.id, member.id)
+                            if (roleDialogFriendId === member.id) setRoleDialogFriendId(null)
+                          }}
+                          title="移出群组"
+                          style={{ width: 28, height: 28, borderRadius: 8, background: 'none', border: '1px solid rgba(239,68,68,0.25)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171', flexShrink: 0 }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+                        >
+                          <X style={{ width: 13, height: 13 }} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* ── Role picker (expands when a member is selected) ── */}
+              {roleDialogFriendId && (
+                <div style={{ margin: '12px 24px 0', background: 'rgba(66,133,244,0.04)', border: '1px solid rgba(66,133,244,0.15)', borderRadius: 14, padding: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#4285f4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+                    为 {groupMembers.find(m => m.id === roleDialogFriendId)?.name} 选择角色
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {/* No role */}
+                    <div
+                      onClick={() => selectedGroup && updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, '')}
+                      style={{ padding: '12px 8px', borderRadius: 10, border: !selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId ? '2px solid #4285f4' : '1px solid #262736', background: !selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId ? 'rgba(66,133,244,0.08)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'center' as const }}
                     >
-                      <span
-                        style={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: '50%',
-                          background: m.avatar,
-                          flexShrink: 0,
-                        }}
-                      />
-                      {m.name}
-                      {roleCard && <span style={{ fontSize: 13 }}>{roleCard.emoji}</span>}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>👤</div>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: '#e8e9f0' }}>无角色</p>
+                    </div>
+                    {roleCards.map(card => {
+                      const isSelected = selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId === card.id
+                      return (
+                        <div
+                          key={card.id}
+                          onClick={() => selectedGroup && updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, card.id)}
+                          style={{ padding: '12px 8px', borderRadius: 10, border: isSelected ? '2px solid #4285f4' : '1px solid #262736', background: isSelected ? 'rgba(66,133,244,0.08)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'center' as const }}
+                        >
+                          <div style={{ fontSize: 22, marginBottom: 4 }}>{card.emoji}</div>
+                          <p style={{ fontSize: 11, fontWeight: 600, color: '#e8e9f0' }}>{card.name}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
-            {/* Role grid */}
-            <div style={{ padding: 24 }} className="grid grid-cols-3 gap-4">
-              {/* No role card */}
-              <div
-                onClick={() => {
-                  if (selectedGroup && roleDialogFriendId) {
-                    updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, '')
-                  }
-                }}
-                style={{
-                  padding: 24,
-                  borderRadius: 16,
-                  border: !selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
-                    ? '2px solid #4285f4'
-                    : '2px solid #262736',
-                  background: !selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
-                    ? 'rgba(66,133,244,0.05)'
-                    : 'rgba(255,255,255,0.02)',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ fontSize: 36, marginBottom: 16 }}>👤</div>
-                <h4 style={{ fontWeight: 700, marginBottom: 4, fontSize: 13, color: '#e8e9f0' }}>无角色</h4>
-                <p style={{ fontSize: 12, color: '#8e9299', lineHeight: 1.5 }}>使用默认行为</p>
-              </div>
-
-              {roleCards.map(card => {
-                const currentRoleId = selectedGroup?.members.find(m => m.friendId === roleDialogFriendId)?.roleCardId
-                const isSelected = currentRoleId === card.id
+              {/* ── Add members ── */}
+              {(() => {
+                const nonMembers = friends.filter(f => !selectedGroup?.members.some(m => m.friendId === f.id))
+                if (nonMembers.length === 0) return null
                 return (
-                  <div
-                    key={card.id}
-                    onClick={() => {
-                      if (selectedGroup && roleDialogFriendId) {
-                        updateGroupMemberRole(selectedGroup.id, roleDialogFriendId, card.id)
-                      }
-                    }}
-                    style={{
-                      padding: 24,
-                      borderRadius: 16,
-                      border: isSelected ? '2px solid #4285f4' : '2px solid #262736',
-                      background: isSelected ? 'rgba(66,133,244,0.05)' : 'rgba(255,255,255,0.02)',
-                      cursor: 'pointer',
-                      transition: 'border-color 0.2s, background 0.2s',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = 'rgba(66,133,244,0.4)'
-                    }}
-                    onMouseLeave={e => {
-                      if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = '#262736'
-                    }}
-                  >
-                    <div style={{ fontSize: 36, marginBottom: 16 }}>{card.emoji}</div>
-                    <h4 style={{ fontWeight: 700, marginBottom: 4, fontSize: 13, color: '#e8e9f0' }}>{card.name}</h4>
-                    <p style={{ fontSize: 12, color: '#8e9299', lineHeight: 1.5 }}>{card.expertArea}</p>
+                  <div style={{ padding: '16px 24px 20px' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#8e9299', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                      添加成员
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {nonMembers.map(friend => (
+                        <div key={friend.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid #262736', borderRadius: 12, padding: '10px 12px' }}>
+                          <div style={{ width: 34, height: 34, borderRadius: '50%', background: friend.avatar, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                            {friend.name[0]}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: '#e8e9f0' }}>{friend.name}</p>
+                            <p style={{ fontSize: 11, color: '#8e9299' }}>{friend.provider} · {friend.model}</p>
+                          </div>
+                          <button
+                            onClick={() => selectedGroup && addGroupMember(selectedGroup.id, friend.id)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 8, background: 'rgba(66,133,244,0.12)', border: '1px solid rgba(66,133,244,0.3)', color: '#4285f4', cursor: 'pointer', flexShrink: 0 }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(66,133,244,0.2)' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(66,133,244,0.12)' }}
+                          >
+                            <Plus style={{ width: 12, height: 12 }} /> 加入
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
-              })}
+              })()}
+
             </div>
 
-            <div style={{ padding: '16px 24px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid #262736' }} className="flex justify-end">
+            {/* Footer */}
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #262736', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
               <button
                 onClick={() => setRoleDialogOpen(false)}
-                style={{ padding: '8px 24px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: 'none', color: '#e8e9f0', fontSize: 14, cursor: 'pointer' }}
+                style={{ padding: '8px 24px', borderRadius: 10, background: '#4285f4', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
               >
                 完成
               </button>

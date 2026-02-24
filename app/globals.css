@@ -30,6 +30,29 @@
   --radius: 0.75rem;
 }
 
+/* 日间模式 */
+.light {
+  --background: #f0f2f8;
+  --foreground: #0e0f1a;
+  --card: #ffffff;
+  --border: #d8dae8;
+  --muted: #6b7280;
+  --accent: #3b77e3;
+
+  --background-hsl: 228 30% 95%;
+  --foreground-hsl: 240 15% 7%;
+  --card-hsl: 0 0% 100%;
+  --card-foreground-hsl: 240 15% 7%;
+  --popover-hsl: 0 0% 100%;
+  --popover-foreground-hsl: 240 15% 7%;
+  --secondary-hsl: 228 20% 90%;
+  --secondary-foreground-hsl: 240 10% 25%;
+  --muted-hsl: 228 20% 92%;
+  --muted-foreground-hsl: 240 5% 45%;
+  --border-hsl: 228 20% 85%;
+  --input-hsl: 228 20% 92%;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -44,6 +67,8 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #262736; border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: #363746; }
+.light ::-webkit-scrollbar-thumb { background: #c0c4d4; }
+.light ::-webkit-scrollbar-thumb:hover { background: #a0a4b4; }
 
 /* Sidebar items */
 .sidebar-item {
@@ -78,6 +103,7 @@ body {
 
 /* Prose */
 .prose-invert { color: rgba(255,255,255,0.85); }
+.light .prose-invert { color: rgba(0,0,0,0.85); }
 .prose-invert p { margin-bottom: 0.5rem; }
 .prose-invert p:last-child { margin-bottom: 0; }
 .prose-invert code {

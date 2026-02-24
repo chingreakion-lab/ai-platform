@@ -44,13 +44,26 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
 
   // Agent 流式运行：所有 message 事件累积到同一个气泡，thinking 事件不插消息
   const runAgent = async (task: string) => {
+    // chief 角色默认 local（可直接操作本地文件系统），feature 默认 docker（隔离容器）
+    const workspaceType = friend.workspaceType ?? (friend.role === 'chief' ? 'local' : 'docker')
+    const isLocal = workspaceType === 'local'
+
     const taskId = addTask({
-      title: `${friend.name} 🤖 Agent`,
+      title: `${friend.name} ${isLocal ? '🖥️' : '🐳'} Agent`,
       description: task.slice(0, 40),
       status: 'running',
     })
 
-    const systemBase = `你是 ${friend.name}，${friend.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
+    const systemBase = isLocal
+      ? `你是 ${friend.name}，${friend.description}。
+你是平台的执行工程师。收到任务后必须立即用工具动手完成，禁止只输出计划或说"交给团队"、"已规划"、"将在下次部署生效"。
+强制工作流：
+1. 用 list_local_dir 或 read_local_file 先了解相关文件的现状
+2. 用 write_local_file 写入完整修改（必须写完整文件内容，不能只写片段）
+3. 用 execute_local_shell 验证结果（如运行 "cd /tmp/ai-platform && npx tsc --noEmit 2>&1 | head -20"）
+4. 用文字总结：改了哪些文件、做了什么、验证结果如何
+不允许跳过任何步骤。遇到问题自己解决，实在解决不了再告诉用户。`
+      : `你是 ${friend.name}，${friend.description}。你是一个能自主完成任务的AI工程师，可以写代码、执行、查看结果、反复迭代直到完成任务。`
 
     // 创建流式占位消息
     const placeholderId = addConversationMessage(conversation.id, {
@@ -76,6 +89,7 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
           task,
           history: conversation.messages.map(m => ({ role: m.role, content: m.content })),
           systemBase,
+          workspaceType,
         }),
       })
 
@@ -120,10 +134,18 @@ export function FriendChatView({ conversation, friend, onBack }: FriendChatViewP
               const tool = data.tool as string
               const args = (data.args as Record<string, string>) || {}
               const label =
-                tool === 'execute_code' ? `⚙️ 执行 ${args.language || ''} 代码` :
-                tool === 'write_file'   ? `📝 写入 \`${args.path}\`` :
-                tool === 'read_file'    ? `📖 读取 \`${args.path}\`` :
-                tool === 'shell'        ? `💻 \`${(args.command || args.cmd || '').slice(0, 60)}\`` :
+                tool === 'execute_code'        ? `⚙️ 执行 ${args.language || ''} 代码` :
+                tool === 'write_file'           ? `📝 写入容器 \`${args.path}\`` :
+                tool === 'read_file'            ? `📖 读取容器 \`${args.path}\`` :
+                tool === 'shell'                ? `💻 容器Shell \`${(args.command || args.cmd || '').slice(0, 60)}\`` :
+                tool === 'read_local_file'      ? `📖 读取本地 \`${args.path}\`` :
+                tool === 'list_local_dir'       ? `📂 列出目录 \`${args.path}\`` :
+                tool === 'write_local_file'     ? `📝 写入本地 \`${args.path}\`` :
+                tool === 'execute_local_shell'  ? `💻 本地Shell \`${(args.command || '').slice(0, 60)}\`` :
+                tool === 'screenshot_local'     ? `📸 截图 \`${args.path || '/'}\`` :
+                tool === 'web_search'           ? `🔍 搜索「${(args.query || '').slice(0, 50)}」` :
+                tool === 'read_webpage'         ? `🌐 读取网页 \`${(args.url || '').slice(0, 60)}\`` :
+                tool === 'chatdev_tool'         ? `⚙️ ChatDev.${args.tool_name || '?'}(${String(args.arguments || '{}').slice(0, 40)})` :
                 `🔧 ${tool}`
               addConversationMessage(conversation.id, {
                 role: 'assistant', content: label,

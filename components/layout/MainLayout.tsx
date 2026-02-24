@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAppStore } from '@/lib/store'
 import { MainView } from '@/components/views/MainView'
 import { FriendChatView } from '@/components/views/FriendChatView'
@@ -18,6 +18,15 @@ export function MainLayout() {
     setActiveGroup, setActiveConversation
   } = useAppStore()
 
+  const [hydrating, setHydrating] = useState(true)
+  const hydrateCalledRef = useRef(false)
+
+  useEffect(() => {
+    if (hydrateCalledRef.current) return
+    hydrateCalledRef.current = true
+    hydrate().finally(() => setHydrating(false))
+  }, [])
+
   const runningTasks = tasks.filter(t => t.status === 'running').length
   const activeConversation = conversations.find(c => c.id === activeConversationId)
   const activeFriend = activeConversation ? friends.find(f => f.id === activeConversation.friendId) : null
@@ -32,7 +41,15 @@ export function MainLayout() {
     setActiveConversation(convId)
   }
 
-  useEffect(() => { hydrate() }, [])
+  if (hydrating) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0b0c14', color: '#8e9299', fontSize: 14, gap: 10 }}>
+        <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #262736', borderTopColor: '#4285f4', animation: 'spin 0.8s linear infinite' }} />
+        加载中...
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
 
   const navItems = [
     { id: 'main' as const, icon: MessageSquare, label: '对话' },

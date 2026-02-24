@@ -1,79 +1,48 @@
 'use client'
 import { create } from 'zustand'
-import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, Attachment, BoardStatus, BoardHistory, Conversation, GroupMember, RoleCard, DEFAULT_ROLE_CARDS, Memory } from './types'
+import { AIFriend, Group, FeatureBoard, Message, Task, LogEntry, ViewType, BoardStatus, BoardHistory, Conversation, RoleCard, DEFAULT_ROLE_CARDS, Memory } from './types'
 import { v4 as uuidv4 } from 'uuid'
 
-// API keys loaded from .env.local (NEXT_PUBLIC_ prefix for client-side access)
-// Configure NEXT_PUBLIC_XAI_API_KEY, NEXT_PUBLIC_GEMINI_API_KEY, NEXT_PUBLIC_CLAUDE_API_KEY
 const XAI_KEY = process.env.NEXT_PUBLIC_XAI_API_KEY || ''
 const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ''
 const CLAUDE_KEY = process.env.NEXT_PUBLIC_CLAUDE_API_KEY || ''
 
 const defaultFriends: AIFriend[] = [
-  {
-    id: 'grok-default',
-    name: 'Grok',
-    provider: 'xai',
-    model: 'grok-3',
-    apiKey: XAI_KEY,
-    avatar: '#6366f1',
-    description: '主工程师 - 负责整体架构与协调',
-    role: 'chief',
-  },
-  {
-    id: 'gemini-default',
-    name: 'Gemini',
-    provider: 'gemini',
-    model: 'gemini-2.5-flash',
-    apiKey: GEMINI_KEY,
-    avatar: '#10b981',
-    description: '功能群工程师 - 擅长分析与设计',
-    role: 'feature',
-  },
-  {
-    id: 'claude-default',
-    name: 'Claude',
-    provider: 'claude',
-    model: 'claude-opus-4-6',
-    apiKey: CLAUDE_KEY,
-    avatar: '#f59e0b',
-    description: '功能群工程师 - 擅长代码与实现',
-    role: 'feature',
-  },
+  { id: 'grok-default', name: 'Grok', provider: 'xai', model: 'grok-3', apiKey: XAI_KEY, avatar: '#6366f1', description: '主工程师 - 负责整体架构与协调', role: 'chief', workspaceType: 'local' },
+  { id: 'gemini-default', name: 'Gemini', provider: 'gemini', model: 'gemini-2.5-flash', apiKey: GEMINI_KEY, avatar: '#10b981', description: '功能群工程师 - 擅长分析与设计', role: 'feature' },
+  { id: 'claude-default', name: 'Claude', provider: 'claude', model: 'claude-opus-4-6', apiKey: CLAUDE_KEY, avatar: '#f59e0b', description: '功能群工程师 - 擅长代码与实现', role: 'feature' },
 ]
 
-function loadFromStorage() {
-  if (typeof window === 'undefined') return null
+// ── DB persistence helpers (fire-and-forget) ──────────────────────────────────
+
+function persist(entity: string, data: object) {
+  fetch('/api/db/entity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ _entity: entity, ...data }),
+  }).catch(() => {})
+}
+
+function persistDelete(entity: string, id: string) {
+  fetch(`/api/db/entity?entity=${entity}&id=${id}`, { method: 'DELETE' }).catch(() => {})
+}
+
+async function loadFromDB(): Promise<Partial<AppState> | null> {
   try {
-    const raw = localStorage.getItem('ai-platform-v1')
-    return raw ? JSON.parse(raw) : null
+    const res = await fetch('/api/db/load')
+    if (!res.ok) return null
+    return await res.json()
   } catch { return null }
 }
 
-function saveToStorage(state: Partial<AppState>) {
-  if (typeof window === 'undefined') return
-  try {
-    const toSave = {
-      friends: state.friends,
-      groups: state.groups,
-      conversations: state.conversations,
-      roleCards: state.roleCards,
-      memories: state.memories,
-      featureBoards: state.featureBoards,
-      tasks: state.tasks,
-      logs: state.logs,
-      outerMessages: state.outerMessages,
-    }
-    localStorage.setItem('ai-platform-v1', JSON.stringify(toSave))
-  } catch {}
-}
+// ── AppState interface ─────────────────────────────────────────────────────────
 
 interface AppState {
   friends: AIFriend[]
   groups: Group[]
-  conversations: Conversation[] // new: friend conversations
-  roleCards: RoleCard[] // new: custom and built-in role cards
-  memories: Memory[] // new: per-friend persistent memories
+  conversations: Conversation[]
+  roleCards: RoleCard[]
+  memories: Memory[]
   featureBoards: FeatureBoard[]
   tasks: Task[]
   logs: LogEntry[]
@@ -81,16 +50,15 @@ interface AppState {
   sidebarOpen: boolean
   activeGroupId: string | null
   activeBoardId: string | null
-  activeConversationId: string | null // new: active conversation id
+  activeConversationId: string | null
   outerMessages: Message[]
   _hydrated: boolean
 
-  hydrate: () => void
+  hydrate: () => Promise<void>
   addFriend: (friend: Omit<AIFriend, 'id'>) => void
   updateFriend: (id: string, updates: Partial<AIFriend>) => void
   removeFriend: (id: string) => void
-  
-  // Conversation methods (new)
+
   addConversation: (friendId: string, name: string) => string
   deleteConversation: (id: string) => void
   renameConversation: (id: string, name: string) => void
@@ -98,15 +66,15 @@ interface AppState {
   updateConversationMessage: (conversationId: string, messageId: string, content: string) => void
   setActiveConversation: (id: string | null) => void
   getConversationsByFriend: (friendId: string) => Conversation[]
-  
-  // Role card methods (new)
+
   addRoleCard: (card: Omit<RoleCard, 'id' | 'createdAt' | 'updatedAt'>) => string
   updateRoleCard: (id: string, updates: Partial<Omit<RoleCard, 'id' | 'createdAt' | 'updatedAt'>>) => void
   deleteRoleCard: (id: string) => void
   getRoleCard: (id: string) => RoleCard | undefined
   updateGroupMemberRole: (groupId: string, friendId: string, roleCardId: string) => void
+  addGroupMember: (groupId: string, friendId: string, roleCardId?: string) => void
+  removeGroupMember: (groupId: string, friendId: string) => void
 
-  // Memory methods (new)
   addMemory: (memory: Omit<Memory, 'id' | 'createdAt'>) => string
   deleteMemory: (id: string) => void
   getMemoriesByFriend: (friendId: string) => Memory[]
@@ -139,12 +107,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   friends: defaultFriends,
   groups: [],
   conversations: [],
-  roleCards: DEFAULT_ROLE_CARDS.map(card => ({
-    ...card,
-    id: card.name,
-    createdAt: 0,
-    updatedAt: 0,
-  })),
+  roleCards: DEFAULT_ROLE_CARDS.map(card => ({ ...card, id: card.name, createdAt: 0, updatedAt: 0 })),
   memories: [],
   featureBoards: [],
   tasks: [],
@@ -157,20 +120,58 @@ export const useAppStore = create<AppState>()((set, get) => ({
   outerMessages: [],
   _hydrated: false,
 
-  hydrate: () => {
+  hydrate: async () => {
     if (get()._hydrated) return
-    const saved = loadFromStorage()
-    if (saved) {
+    const saved = await loadFromDB()
+    const isEmpty = !saved || Object.keys(saved).length === 0 ||
+      (!(saved as Partial<AppState>).friends?.length &&
+       !(saved as Partial<AppState>).groups?.length &&
+       !(saved as Partial<AppState>).conversations?.length)
+
+    // One-time migration from localStorage
+    if (isEmpty && typeof window !== 'undefined') {
+      const local = localStorage.getItem('ai-platform-v1')
+      if (local) {
+        try {
+          await fetch('/api/db/migrate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: local }),
+          })
+          localStorage.removeItem('ai-platform-v1')
+          const migrated = await loadFromDB()
+          if (migrated && Object.keys(migrated).length > 0) {
+            const m = migrated as Partial<AppState>
+            set({
+              friends: m.friends?.length ? m.friends : defaultFriends,
+              groups: m.groups || [],
+              conversations: m.conversations || [],
+              roleCards: DEFAULT_ROLE_CARDS.map(c => ({ ...c, id: c.name, createdAt: 0, updatedAt: 0 })),
+              memories: m.memories || [],
+              featureBoards: m.featureBoards || [],
+              tasks: m.tasks || [],
+              logs: m.logs || [],
+              outerMessages: m.outerMessages || [],
+              _hydrated: true,
+            })
+            return
+          }
+        } catch { /* migration failed, continue with empty */ }
+      }
+    }
+
+    if (!isEmpty) {
+      const s = saved as Partial<AppState>
       set({
-        friends: saved.friends?.length ? saved.friends : defaultFriends,
-        groups: saved.groups || [],
-        conversations: saved.conversations || [],
-        roleCards: DEFAULT_ROLE_CARDS.map(card => ({ ...card, id: card.name, createdAt: 0, updatedAt: 0 })), // Always use latest built-in role cards
-        memories: saved.memories || [],
-        featureBoards: saved.featureBoards || [],
-        tasks: saved.tasks || [],
-        logs: saved.logs || [],
-        outerMessages: saved.outerMessages || [],
+        friends: s.friends?.length ? s.friends : defaultFriends,
+        groups: s.groups || [],
+        conversations: s.conversations || [],
+        roleCards: DEFAULT_ROLE_CARDS.map(c => ({ ...c, id: c.name, createdAt: 0, updatedAt: 0 })),
+        memories: s.memories || [],
+        featureBoards: s.featureBoards || [],
+        tasks: s.tasks || [],
+        logs: s.logs || [],
+        outerMessages: s.outerMessages || [],
         _hydrated: true,
       })
     } else {
@@ -179,235 +180,197 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   addFriend: (friend) => set((state) => {
-    const next = { ...state, friends: [...state.friends, { ...friend, id: uuidv4() }] }
-    saveToStorage(next)
-    return next
+    const newFriend = { ...friend, id: uuidv4() }
+    persist('friend', newFriend)
+    return { friends: [...state.friends, newFriend] }
   }),
   updateFriend: (id, updates) => set((state) => {
-    const next = { ...state, friends: state.friends.map(f => f.id === id ? { ...f, ...updates } : f) }
-    saveToStorage(next)
-    return next
+    const friends = state.friends.map(f => f.id === id ? { ...f, ...updates } : f)
+    const updated = friends.find(f => f.id === id)
+    if (updated) persist('friend', updated)
+    return { friends }
   }),
   removeFriend: (id) => set((state) => {
-    const next = { ...state, friends: state.friends.filter(f => f.id !== id) }
-    saveToStorage(next)
-    return next
+    persistDelete('friend', id)
+    return { friends: state.friends.filter(f => f.id !== id) }
   }),
 
-  // Conversation management (new)
   addConversation: (friendId, name) => {
     const id = uuidv4()
+    const conv = { id, friendId, name, messages: [], createdAt: Date.now(), lastActiveAt: Date.now() }
     set((state) => {
-      const next = {
-        ...state,
-        conversations: [...state.conversations, {
-          id, friendId, name,
-          messages: [],
-          createdAt: Date.now(),
-          lastActiveAt: Date.now()
-        }],
-        activeConversationId: id,
-      }
-      saveToStorage(next)
-      return next
+      persist('conversation', conv)
+      return { conversations: [...state.conversations, conv], activeConversationId: id }
     })
     return id
   },
-
   deleteConversation: (id) => set((state) => {
-    const next = { ...state, conversations: state.conversations.filter(c => c.id !== id) }
-    saveToStorage(next)
-    return next
+    persistDelete('conversation', id)
+    return { conversations: state.conversations.filter(c => c.id !== id) }
   }),
-
   renameConversation: (id, name) => set((state) => {
-    const next = { ...state, conversations: state.conversations.map(c => c.id === id ? { ...c, name } : c) }
-    saveToStorage(next)
-    return next
+    const conversations = state.conversations.map(c => c.id === id ? { ...c, name } : c)
+    const updated = conversations.find(c => c.id === id)
+    if (updated) persist('conversation', updated)
+    return { conversations }
   }),
-
   addConversationMessage: (conversationId, message) => {
     const id = uuidv4()
+    const msg = { ...message, id, timestamp: Date.now() }
     set((state) => {
-      const next = {
-        ...state,
+      persist('message', { ...msg, _parentType: 'conversation', _parentId: conversationId })
+      return {
         conversations: state.conversations.map(c => c.id === conversationId ? {
           ...c,
-          messages: [...c.messages, { ...message, id, timestamp: Date.now() }],
+          messages: [...c.messages, msg],
           lastActiveAt: Date.now()
         } : c)
       }
-      saveToStorage(next)
-      return next
     })
     return id
   },
-
   updateConversationMessage: (conversationId, messageId, content) => set((state) => {
-    const next = {
-      ...state,
+    persist('message_update', { id: messageId, content })
+    return {
       conversations: state.conversations.map(c => c.id === conversationId ? {
         ...c,
         messages: c.messages.map(m => m.id === messageId ? { ...m, content } : m)
       } : c)
     }
-    saveToStorage(next)
-    return next
   }),
-
   setActiveConversation: (id) => set({ activeConversationId: id }),
-
-  getConversationsByFriend: (friendId) => {
-    return get().conversations.filter(c => c.friendId === friendId)
-  },
+  getConversationsByFriend: (friendId) => get().conversations.filter(c => c.friendId === friendId),
 
   createGroup: (name, memberIds, roleMap = {}) => {
     const id = uuidv4()
+    const group: Group = {
+      id, name,
+      members: memberIds.map(friendId => ({ friendId, roleCardId: roleMap[friendId] || '' })),
+      announcement: '', announcementFiles: [], messages: [], boundBoardIds: [],
+      createdAt: Date.now()
+    }
     set((state) => {
-      const next = {
-        ...state,
-        groups: [...state.groups, {
-          id, name,
-          members: memberIds.map(friendId => ({ friendId, roleCardId: roleMap[friendId] || '' })),
-          announcement: '', announcementFiles: [],
-          messages: [], boundBoardIds: [],
-          createdAt: Date.now()
-        }],
-        activeGroupId: id,
-      }
-      saveToStorage(next)
-      return next
+      persist('group', group)
+      return { groups: [...state.groups, group], activeGroupId: id }
     })
     return id
   },
   updateGroup: (id, updates) => set((state) => {
-    const next = { ...state, groups: state.groups.map(g => g.id === id ? { ...g, ...updates } : g) }
-    saveToStorage(next)
-    return next
+    const groups = state.groups.map(g => g.id === id ? { ...g, ...updates } : g)
+    const updated = groups.find(g => g.id === id)
+    if (updated) persist('group', updated)
+    return { groups }
   }),
   deleteGroup: (id) => set((state) => {
-    const next = { ...state, groups: state.groups.filter(g => g.id !== id) }
-    saveToStorage(next)
-    return next
+    persistDelete('group', id)
+    return { groups: state.groups.filter(g => g.id !== id) }
   }),
   addMessage: (groupId, message) => {
     const id = uuidv4()
+    const msg = { ...message, id, timestamp: Date.now() }
     set((state) => {
-      const next = {
-        ...state,
-        groups: state.groups.map(g => g.id === groupId ? {
-          ...g, messages: [...g.messages, { ...message, id, timestamp: Date.now() }]
-        } : g)
+      persist('message', { ...msg, _parentType: 'group', _parentId: groupId })
+      return {
+        groups: state.groups.map(g => g.id === groupId ? { ...g, messages: [...g.messages, msg] } : g)
       }
-      saveToStorage(next)
-      return next
     })
     return id
   },
-
   updateGroupMessage: (groupId, messageId, content) => set((state) => {
-    const next = {
-      ...state,
+    persist('message_update', { id: messageId, content })
+    return {
       groups: state.groups.map(g => g.id === groupId ? {
         ...g,
         messages: g.messages.map(m => m.id === messageId ? { ...m, content } : m)
       } : g)
     }
-    saveToStorage(next)
-    return next
   }),
 
   createBoard: (name, description, ownerId) => {
     const id = uuidv4()
+    const board: FeatureBoard = {
+      id, name, description, ownerId,
+      version: '0.1.0', progress: 0,
+      status: 'planning' as BoardStatus,
+      history: [], boundGroupIds: [],
+      createdAt: Date.now(), updatedAt: Date.now()
+    }
     set((state) => {
-      const next = {
-        ...state,
-        featureBoards: [...state.featureBoards, {
-          id, name, description, ownerId,
-          version: '0.1.0', progress: 0,
-          status: 'planning' as BoardStatus,
-          history: [], boundGroupIds: [],
-          createdAt: Date.now(), updatedAt: Date.now()
-        }],
-        activeBoardId: id,
-      }
-      saveToStorage(next)
-      return next
+      persist('board', board)
+      return { featureBoards: [...state.featureBoards, board], activeBoardId: id }
     })
     return id
   },
   updateBoard: (id, updates) => set((state) => {
-    const next = { ...state, featureBoards: state.featureBoards.map(b => b.id === id ? { ...b, ...updates, updatedAt: Date.now() } : b) }
-    saveToStorage(next)
-    return next
+    const featureBoards = state.featureBoards.map(b => b.id === id ? { ...b, ...updates, updatedAt: Date.now() } : b)
+    const updated = featureBoards.find(b => b.id === id)
+    if (updated) persist('board', updated)
+    return { featureBoards }
   }),
   deleteBoard: (id) => set((state) => {
-    const next = { ...state, featureBoards: state.featureBoards.filter(b => b.id !== id) }
-    saveToStorage(next)
-    return next
+    persistDelete('board', id)
+    return { featureBoards: state.featureBoards.filter(b => b.id !== id) }
   }),
   addBoardHistory: (boardId, entry) => set((state) => {
-    const next = {
-      ...state,
-      featureBoards: state.featureBoards.map(b => b.id === boardId ? {
-        ...b,
-        history: [...b.history, { ...entry, id: uuidv4(), timestamp: Date.now() }],
-        updatedAt: Date.now()
-      } : b)
-    }
-    saveToStorage(next)
-    return next
+    const featureBoards = state.featureBoards.map(b => b.id === boardId ? {
+      ...b,
+      history: [...b.history, { ...entry, id: uuidv4(), timestamp: Date.now() }],
+      updatedAt: Date.now()
+    } : b)
+    const updated = featureBoards.find(b => b.id === boardId)
+    if (updated) persist('board', updated)
+    return { featureBoards }
   }),
   bindGroupToBoard: (groupId, boardId) => set((state) => {
-    const next = {
-      ...state,
-      groups: state.groups.map(g => g.id === groupId ? {
-        ...g, boundBoardIds: g.boundBoardIds.includes(boardId) ? g.boundBoardIds : [...g.boundBoardIds, boardId]
-      } : g),
-      featureBoards: state.featureBoards.map(b => b.id === boardId ? {
-        ...b, boundGroupIds: b.boundGroupIds.includes(groupId) ? b.boundGroupIds : [...b.boundGroupIds, groupId]
-      } : b)
-    }
-    saveToStorage(next)
-    return next
+    const groups = state.groups.map(g => g.id === groupId ? {
+      ...g, boundBoardIds: g.boundBoardIds.includes(boardId) ? g.boundBoardIds : [...g.boundBoardIds, boardId]
+    } : g)
+    const featureBoards = state.featureBoards.map(b => b.id === boardId ? {
+      ...b, boundGroupIds: b.boundGroupIds.includes(groupId) ? b.boundGroupIds : [...b.boundGroupIds, groupId]
+    } : b)
+    const updatedGroup = groups.find(g => g.id === groupId)
+    const updatedBoard = featureBoards.find(b => b.id === boardId)
+    if (updatedGroup) persist('group', updatedGroup)
+    if (updatedBoard) persist('board', updatedBoard)
+    return { groups, featureBoards }
   }),
   unbindGroupFromBoard: (groupId, boardId) => set((state) => {
-    const next = {
-      ...state,
-      groups: state.groups.map(g => g.id === groupId ? {
-        ...g, boundBoardIds: g.boundBoardIds.filter(id => id !== boardId)
-      } : g),
-      featureBoards: state.featureBoards.map(b => b.id === boardId ? {
-        ...b, boundGroupIds: b.boundGroupIds.filter(id => id !== groupId)
-      } : b)
-    }
-    saveToStorage(next)
-    return next
+    const groups = state.groups.map(g => g.id === groupId ? {
+      ...g, boundBoardIds: g.boundBoardIds.filter(id => id !== boardId)
+    } : g)
+    const featureBoards = state.featureBoards.map(b => b.id === boardId ? {
+      ...b, boundGroupIds: b.boundGroupIds.filter(id => id !== groupId)
+    } : b)
+    const updatedGroup = groups.find(g => g.id === groupId)
+    const updatedBoard = featureBoards.find(b => b.id === boardId)
+    if (updatedGroup) persist('group', updatedGroup)
+    if (updatedBoard) persist('board', updatedBoard)
+    return { groups, featureBoards }
   }),
 
   addTask: (task) => {
     const id = uuidv4()
+    const t = { ...task, id, createdAt: Date.now(), updatedAt: Date.now() }
     set((state) => {
-      const next = { ...state, tasks: [...state.tasks, { ...task, id, createdAt: Date.now(), updatedAt: Date.now() }] }
-      saveToStorage(next)
-      return next
+      persist('task', t)
+      return { tasks: [...state.tasks, t] }
     })
     return id
   },
   updateTask: (id, updates) => set((state) => {
-    const next = { ...state, tasks: state.tasks.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t) }
-    saveToStorage(next)
-    return next
+    const tasks = state.tasks.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t)
+    const updated = tasks.find(t => t.id === id)
+    if (updated) persist('task', updated)
+    return { tasks }
   }),
   addLog: (log) => set((state) => {
-    const next = { ...state, logs: [{ ...log, id: uuidv4(), timestamp: Date.now() }, ...state.logs].slice(0, 500) }
-    saveToStorage(next)
-    return next
+    const entry = { ...log, id: uuidv4(), timestamp: Date.now() }
+    persist('log', entry)
+    return { logs: [entry, ...state.logs].slice(0, 500) }
   }),
-  clearLogs: () => set((state) => {
-    const next = { ...state, logs: [] }
-    saveToStorage(next)
-    return next
+  clearLogs: () => set(() => {
+    persistDelete('logs', 'all')
+    return { logs: [] }
   }),
 
   setActiveView: (view) => set({ activeView: view }),
@@ -416,88 +379,72 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setActiveGroup: (id) => set({ activeGroupId: id }),
   setActiveBoard: (id) => set({ activeBoardId: id }),
   addOuterMessage: (message) => set((state) => {
-    const next = { ...state, outerMessages: [...state.outerMessages, { ...message, id: uuidv4(), timestamp: Date.now() }] }
-    saveToStorage(next)
-    return next
+    const msg = { ...message, id: uuidv4(), timestamp: Date.now() }
+    persist('message', { ...msg, _parentType: 'outer', _parentId: 'outer' })
+    return { outerMessages: [...state.outerMessages, msg] }
   }),
 
-  // Role card methods
   addRoleCard: (card) => {
     const id = uuidv4()
+    const newCard = { ...card, id, createdAt: Date.now(), updatedAt: Date.now() }
     set((state) => {
-      const next = {
-        ...state,
-        roleCards: [...state.roleCards, {
-          ...card,
-          id,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        }],
-      }
-      saveToStorage(next)
-      return next
+      persist('rolecard', newCard)
+      return { roleCards: [...state.roleCards, newCard] }
     })
     return id
   },
-
   updateRoleCard: (id, updates) => set((state) => {
-    const next = {
-      ...state,
-      roleCards: state.roleCards.map(c => c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c),
-    }
-    saveToStorage(next)
-    return next
+    const roleCards = state.roleCards.map(c => c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c)
+    const updated = roleCards.find(c => c.id === id)
+    if (updated) persist('rolecard', updated)
+    return { roleCards }
   }),
-
   deleteRoleCard: (id) => set((state) => {
-    const next = {
-      ...state,
-      roleCards: state.roleCards.filter(c => c.id !== id),
-    }
-    saveToStorage(next)
-    return next
+    persistDelete('rolecard', id)
+    return { roleCards: state.roleCards.filter(c => c.id !== id) }
   }),
-
-  getRoleCard: (id) => {
-    return get().roleCards.find(c => c.id === id)
-  },
+  getRoleCard: (id) => get().roleCards.find(c => c.id === id),
 
   updateGroupMemberRole: (groupId, friendId, roleCardId) => set((state) => {
-    const next = {
-      ...state,
-      groups: state.groups.map(g => g.id === groupId ? {
-        ...g,
-        members: g.members.map(m => m.friendId === friendId ? { ...m, roleCardId } : m)
-      } : g)
-    }
-    saveToStorage(next)
-    return next
+    const groups = state.groups.map(g => g.id === groupId ? {
+      ...g,
+      members: g.members.map(m => m.friendId === friendId ? { ...m, roleCardId } : m)
+    } : g)
+    const updated = groups.find(g => g.id === groupId)
+    if (updated) persist('group', updated)
+    return { groups }
+  }),
+  addGroupMember: (groupId, friendId, roleCardId = '') => set((state) => {
+    const groups = state.groups.map(g => g.id === groupId
+      ? { ...g, members: g.members.some(m => m.friendId === friendId) ? g.members : [...g.members, { friendId, roleCardId }] }
+      : g)
+    const updated = groups.find(g => g.id === groupId)
+    if (updated) persist('group', updated)
+    return { groups }
+  }),
+  removeGroupMember: (groupId, friendId) => set((state) => {
+    const groups = state.groups.map(g => g.id === groupId
+      ? { ...g, members: g.members.filter(m => m.friendId !== friendId) }
+      : g)
+    const updated = groups.find(g => g.id === groupId)
+    if (updated) persist('group', updated)
+    return { groups }
   }),
 
-  // Memory methods
   addMemory: (memory) => {
     const id = uuidv4()
+    const mem = { ...memory, id, createdAt: Date.now() }
     set((state) => {
-      const next = {
-        ...state,
-        memories: [...state.memories, { ...memory, id, createdAt: Date.now() }],
-      }
-      saveToStorage(next)
-      return next
+      persist('memory', mem)
+      return { memories: [...state.memories, mem] }
     })
     return id
   },
-
   deleteMemory: (id) => set((state) => {
-    const next = { ...state, memories: state.memories.filter(m => m.id !== id) }
-    saveToStorage(next)
-    return next
+    persistDelete('memory', id)
+    return { memories: state.memories.filter(m => m.id !== id) }
   }),
-
-  getMemoriesByFriend: (friendId) => {
-    return get().memories.filter(m => m.friendId === friendId)
-  },
-
+  getMemoriesByFriend: (friendId) => get().memories.filter(m => m.friendId === friendId),
   searchMemories: (friendId, query) => {
     const keywords = query.toLowerCase().split(/[\s，,、]+/).filter(Boolean)
     return get().memories
